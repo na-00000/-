@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>교사 관리자 모드 - 매일 국어 배움터 (양산희망학교)</title>
+  
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/assets/components.css">
+
+  <style>
+    /* 관리자 대시보드 전용 레이아웃 스타일 (태블릿 PC 가로 화면 최적화) */
+    .admin-container {
+      max-width: 1360px;
+      margin: 0 auto;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .admin-header {
+      background: #ffffff;
+      border: var(--border-thick);
+      border-radius: var(--radius-lg);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 6px 0 var(--color-border-dark);
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .admin-title-group {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .admin-badge {
+      background: #1e293b;
+      color: #ffffff;
+      font-size: 1.15rem;
+      font-weight: 800;
+      padding: 6px 14px;
+      border-radius: 12px;
+    }
+
+    .admin-nav-tabs {
+      display: flex;
+      gap: 16px;
+      border-bottom: 3px solid #cbd5e1;
+      padding-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .admin-nav-tab {
+      min-height: 64px;
+      font-size: 1.3rem;
+      font-weight: 900;
+      padding: 10px 24px;
+      border: 3px solid var(--color-border-dark);
+      border-radius: 16px;
+      background: #ffffff;
+      color: #475569;
+      cursor: pointer;
+      box-shadow: 0 4px 0 var(--color-border-dark);
+      transition: all 0.15s ease;
+    }
+
+    .admin-nav-tab:hover {
+      background: #f8fafc;
+      transform: translateY(-2px);
+    }
+
+    .admin-nav-tab.active {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 4px 0 #0f172a;
+    }
+
+    .admin-tab-pane {
+      display: none;
+    }
+
+    .admin-tab-pane.active {
+      display: block;
+      animation: fadeIn 0.25s ease-out;
+    }
+
+    /* 1. 학습 기록 뷰어 그리드 레이아웃 */
+    .records-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 24px;
+    }
+
+    .admin-cal-box, .admin-detail-box {
+      background: #ffffff;
+      border: var(--border-thick);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      box-shadow: 0 8px 0 var(--color-border-dark);
+    }
+
+    .admin-cal-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .admin-cal-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+    }
+
+    .admin-cal-day {
+      min-height: 62px;
+      border: 2px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      cursor: pointer;
+      background: #f8fafc;
+      transition: all 0.1s ease;
+    }
+
+    .admin-cal-day:hover {
+      border-color: #2563eb;
+      background: #eff6ff;
+    }
+
+    .admin-cal-day.selected {
+      border: 3px solid #2563eb;
+      background: #dbeafe;
+      box-shadow: 0 4px 0 #1d4ed8;
+    }
+
+    .admin-cal-day.has-record {
+      border-color: #16a34a;
+      background: #f0fdf4;
+    }
+
+    .admin-cal-day.disabled {
+      opacity: 0.3;
+      pointer-events: none;
+    }
+
+    .admin-cal-day .day-num {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .admin-cal-day .record-badge {
+      font-size: 0.8rem;
+      font-weight: 900;
+      color: #15803d;
+      background: #dcfce7;
+      border-radius: 6px;
+      padding: 2px 4px;
+      text-align: center;
+      border: 1px solid #16a34a;
+    }
+
+    .record-summary-card {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .record-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px dashed #cbd5e1;
+      padding-bottom: 12px;
+    }
+
+    .record-date-badge {
+      font-size: 1.55rem;
+      font-weight: 900;
+      color: #1e3a8a;
+    }
+
+    .record-success-tag {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #15803d;
+      background: #dcfce7;
+      padding: 4px 12px;
+      border-radius: 12px;
+      border: 2px solid #16a34a;
+    }
+
+    .record-detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .record-item {
+      background: #f8fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .record-item.full-width {
+      grid-column: span 2;
+    }
+
+    .item-label {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #64748b;
+    }
+
+    .item-value {
+      font-size: 1.35rem;
+      font-weight: 900;
+      color: #0f172a;
+    }
+
+    .teacher-memo-area {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .teacher-memo-input {
+      border: 3px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 1.1rem;
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    .btn-save-memo {
+      align-self: flex-end;
+      min-height: 52px !important;
+      font-size: 1.15rem !important;
+      padding: 8px 20px !important;
+    }
+
+    .empty-record-notice {
+      text-align: center;
+      padding: 36px 20px;
+      color: #64748b;
+    }
+
+    .empty-icon {
+      font-size: 3.2rem;
+      margin-bottom: 10px;
+    }
+
+    .empty-title {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    .admin-table-wrapper {
+      background: #ffffff;
+      border: var(--border-thick);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      box-shadow: 0 8px 0 var(--color-border-dark);
+      overflow-x: auto;
+    }
+
+    .admin-data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 1.15rem;
+    }
+
+    .admin-data-table th, .admin-data-table td {
+      border: 2px solid #e2e8f0;
+      padding: 12px 16px;
+      text-align: left;
+    }
+
+    .admin-data-table th {
+      background: #f1f5f9;
+      font-weight: 900;
+      color: #1e293b;
+    }
+
+    .table-tag-success {
+      background: #dcfce7;
+      color: #15803d;
+      font-weight: 900;
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+
+    /* 2. 급식 & 문장 관리 탭 스타일 */
+    .admin-form-card {
+      background: #ffffff;
+      border: var(--border-thick);
+      border-radius: var(--radius-lg);
+      padding: 22px;
+      box-shadow: 0 8px 0 var(--color-border-dark);
+      margin-bottom: 20px;
+    }
+
+    .yangsan-sync-banner {
+      background: #f0fdf4;
+      border: 4px solid #15803d;
+      border-radius: 22px;
+      padding: 20px 24px;
+      margin-bottom: 20px;
+      box-shadow: 0 6px 0 #14532d;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 14px;
+      margin-top: 14px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .form-input {
+      flex: 1;
+      min-width: 220px;
+      height: 60px;
+      border: 3px solid var(--color-border-dark);
+      border-radius: 14px;
+      padding: 0 18px;
+      font-size: 1.25rem;
+      font-family: inherit;
+    }
+
+    .form-select {
+      height: 60px;
+      border: 3px solid var(--color-border-dark);
+      border-radius: 14px;
+      padding: 0 16px;
+      font-size: 1.25rem;
+      font-family: inherit;
+      background: #ffffff;
+    }
+
+    .admin-items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .admin-lunch-item, .admin-sentence-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #ffffff;
+      border: 3px solid var(--color-border-dark);
+      border-radius: 16px;
+      padding: 14px 20px;
+      box-shadow: 0 4px 0 var(--color-border-dark);
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .admin-sentence-item.is-selected {
+      border-color: #2563eb;
+      background: #eff6ff;
+      box-shadow: 0 4px 0 #1d4ed8;
+    }
+
+    .lunch-item-icon {
+      font-size: 2.1rem;
+      margin-right: 10px;
+    }
+
+    .lunch-item-name {
+      font-size: 1.5rem;
+      font-weight: 900;
+      flex: 1;
+    }
+
+    .sentence-category-tag {
+      background: #7c3aed;
+      color: #ffffff;
+      font-size: 1.05rem;
+      font-weight: 800;
+      padding: 4px 12px;
+      border-radius: 10px;
+    }
+
+    .sentence-text {
+      font-size: 1.45rem;
+      font-weight: 800;
+      flex: 1;
+    }
+
+    .sentence-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .btn-select-sentence {
+      min-height: 48px;
+      padding: 8px 16px;
+      background: #2563eb;
+      color: #ffffff;
+      border: 2px solid var(--color-border-dark);
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .btn-delete-item {
+      min-height: 48px;
+      padding: 8px 16px;
+      background: #ef4444;
+      color: #ffffff;
+      border: 2px solid var(--color-border-dark);
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .preset-btn-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn-preset-lunch {
+      min-height: 52px;
+      padding: 10px 18px;
+      background: #fed7aa;
+      border: 2px solid #c2410c;
+      color: #9a3412;
+      border-radius: 12px;
+      font-size: 1.15rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    @media (max-width: 960px) {
+      .records-layout {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="admin-container">
+    <!-- 관리자 상단 헤더 -->
+    <header class="admin-header">
+      <div class="admin-title-group">
+        <span class="admin-badge">교사용</span>
+        <h1 class="app-title">매일 국어 관리자 대시보드</h1>
+        <span class="school-sub-badge">양산희망학교</span>
+      </div>
+
+      <div class="header-tools">
+        <a href="index.html" class="btn-3d btn-success" style="min-height: 60px; font-size: 1.25rem;">
+          🎒 학생 학습 화면으로 이동
+        </a>
+      </div>
+    </header>
+
+    <!-- 내비게이션 탭 -->
+    <nav class="admin-nav-tabs" role="tablist">
+      <button type="button" class="admin-nav-tab active" data-tab="records" role="tab">
+        📊 학생 학습 기록 조회 (달력)
+      </button>
+      <button type="button" class="admin-nav-tab" data-tab="lunch" role="tab">
+        🍱 양산희망학교 급식 식단 관리
+      </button>
+      <button type="button" class="admin-nav-tab" data-tab="sentences" role="tab">
+        ✍️ 오늘의 한 문장 데이터베이스
+      </button>
+    </nav>
+
+    <!-- [탭 1] 학생 일일 학습 기록 뷰어 -->
+    <section class="admin-tab-pane active" id="tabPane_records">
+      <div class="records-layout">
+        <!-- 좌측: 달력 뷰 -->
+        <div class="admin-cal-box">
+          <div class="admin-cal-controls">
+            <h2 class="calendar-month-title" id="adminCalendarTitle" style="font-size: 1.75rem;">2026년 11월</h2>
+            <div style="display: flex; gap: 8px;">
+              <button type="button" class="btn-3d btn-secondary" id="btnPrevMonth" style="min-height: 48px; padding: 6px 14px; font-size: 1.05rem;">◀ 이전달</button>
+              <button type="button" class="btn-3d btn-primary" id="btnTodayMonth" style="min-height: 48px; padding: 6px 14px; font-size: 1.05rem;">오늘</button>
+              <button type="button" class="btn-3d btn-secondary" id="btnNextMonth" style="min-height: 48px; padding: 6px 14px; font-size: 1.05rem;">다음달 ▶</button>
+            </div>
+          </div>
+
+          <div class="calendar-weekdays" style="font-size: 1.1rem; gap: 8px;">
+            <div class="weekday sun">일</div>
+            <div class="weekday">월</div>
+            <div class="weekday">화</div>
+            <div class="weekday">수</div>
+            <div class="weekday">목</div>
+            <div class="weekday">금</div>
+            <div class="weekday sat">토</div>
+          </div>
+
+          <div class="admin-cal-grid" id="adminCalendarGrid">
+            <!-- 자바스크립트로 일자 생성 -->
+          </div>
+        </div>
+
+        <!-- 우측: 선택 날짜 상세 수행 정보 -->
+        <div class="admin-detail-box">
+          <h2 style="font-size: 1.55rem; font-weight: 900; margin-bottom: 14px; color: #1e3a8a;">
+            📋 일일 과제 수행 상세 카드
+          </h2>
+          <div id="recordDetailPanel">
+            <!-- 자바스크립트로 상세 내용 동적 렌더링 -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 하단: 도구 모음 및 전체 기록 테이블 -->
+      <div class="admin-table-wrapper">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+          <h2 style="font-size: 1.55rem; font-weight: 900;">전체 누적 학습 기록 목록</h2>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button type="button" class="btn-3d btn-primary" id="btnGenerateSampleData" style="min-height: 52px; font-size: 1.1rem; padding: 6px 16px;">
+              🪄 체험용 샘플 데이터 생성
+            </button>
+            <button type="button" class="btn-3d btn-secondary" id="btnExportJSON" style="min-height: 52px; font-size: 1.1rem; padding: 6px 16px;">
+              💾 JSON 내보내기
+            </button>
+            <button type="button" class="btn-3d btn-danger" id="btnClearAllRecords" style="min-height: 52px; font-size: 1.1rem; padding: 6px 16px;">
+              🗑️ 기록 전체 삭제
+            </button>
+          </div>
+        </div>
+
+        <table class="admin-data-table">
+          <thead>
+            <tr>
+              <th>학습 일자</th>
+              <th>선택 날씨</th>
+              <th>선택 기분</th>
+              <th>선호 급식 메뉴</th>
+              <th>따라 쓴 문장</th>
+              <th>상태</th>
+            </tr>
+          </thead>
+          <tbody id="recordsTableBody">
+            <!-- 기록 데이터 렌더링 -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- [탭 2] 양산희망학교 급식 메뉴 자동 연동 & 관리 -->
+    <section class="admin-tab-pane" id="tabPane_lunch">
+      <!-- 양산희망학교 실시간 식단 자동 동기화 카드 -->
+      <div class="yangsan-sync-banner">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
+          <div>
+            <h2 style="font-size: 1.6rem; font-weight: 900; color: #14532d; margin-bottom: 6px;">
+              🏫 양산희망학교 식단표 실시간 자동 연동
+            </h2>
+            <p style="font-size: 1.1rem; font-weight: 700; color: #166534;">
+              경상남도교육청 양산희망학교 식단 캘린더(mi=152211) 및 나이스 급식 정보를 기반으로 알레르기 번호를 자동 제거하고 아이콘을 매칭합니다.
+            </p>
+          </div>
+          <a href="https://huimang-s.gne.go.kr/huimang-s/dv/dietView/selectDietCalendarView.do?mi=152211" target="_blank" rel="noopener noreferrer" class="btn-3d btn-secondary" style="min-height: 56px; font-size: 1.15rem;">
+            🔗 양산희망학교 식단 캘린더 열기
+          </a>
+        </div>
+
+        <div class="form-row" style="margin-top: 16px;">
+          <input type="date" id="adminSyncDateInput" class="form-input" style="max-width: 240px; font-weight: 800;">
+          <button type="button" class="btn-3d btn-success" id="btnAdminAutoSyncDiet" style="min-height: 60px; font-size: 1.2rem;">
+            🔄 선택한 날짜의 양산희망학교 식단 자동 반영
+          </button>
+          <span id="adminSyncResultBadge" style="font-size: 1.15rem; font-weight: 900; color: #15803d;"></span>
+        </div>
+
+        <!-- 홈페이지 식단 텍스트 복사-붙여넣기 즉시 변환기 -->
+        <div style="margin-top: 18px; padding-top: 14px; border-top: 2px dashed #86efac;">
+          <label for="rawDietPasteInput" style="display: block; font-size: 1.15rem; font-weight: 900; color: #14532d; margin-bottom: 8px;">
+            📋 학교 홈페이지 식단표 텍스트 붙여넣기 자동 변환 (알레르기 숫자 및 열량 자동 제거):
+          </label>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <textarea id="rawDietPasteInput" rows="2" style="flex: 1; min-width: 280px; border: 3px solid #15803d; border-radius: 14px; padding: 10px 14px; font-size: 1.15rem; font-family: inherit;" placeholder="예: 찰보리밥, 한우미역국(5.6.16), 돈육메추리알장조림(1.5.6.10.13), 배추김치(9.13)"></textarea>
+            <button type="button" class="btn-3d btn-primary" id="btnParseRawDiet" style="min-height: 60px; font-size: 1.2rem;">
+              ✨ 식단 텍스트 자동 정제·적용
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-form-card">
+        <h2 style="font-size: 1.55rem; font-weight: 900; margin-bottom: 6px;">개별 급식 메뉴 항목 추가 & 요일별 식단 프리셋</h2>
+        <form id="addLunchForm" class="form-row">
+          <select id="lunchIconSelect" class="form-select" aria-label="메뉴 아이콘">
+            <option value="🍚">🍚 밥/죽류</option>
+            <option value="🍲">🍲 국/탕/찌개</option>
+            <option value="🥩">🥩 불고기/육류</option>
+            <option value="🍤">🍤 돈가스/튀김</option>
+            <option value="🍗">🍗 닭/오리요리</option>
+            <option value="🍳">🍳 달걀/두부/전</option>
+            <option value="🐟">🐟 생선/해물</option>
+            <option value="🥬">🥬 김치/나물</option>
+            <option value="🥗">🥗 샐러드</option>
+            <option value="🍛">🍛 카레/덮밥</option>
+            <option value="🍎">🍎 과일/후식</option>
+            <option value="🥛">🥛 우유/유제품</option>
+          </select>
+          <input type="text" id="lunchNameInput" class="form-input" placeholder="메뉴 이름 입력 (예: 한우미역국, 찰보리밥)" required>
+          <button type="submit" class="btn-3d btn-primary" style="min-height: 60px;">+ 메뉴 추가</button>
+        </form>
+
+        <div style="margin-top: 18px;">
+          <h3 style="font-size: 1.15rem; font-weight: 900; color: #334155;">양산희망학교 요일별 표준 식단 원클릭 적용:</h3>
+          <div class="preset-btn-group">
+            <button type="button" class="btn-preset-lunch" data-preset="mon">월요일 (소불고기·한우미역국)</button>
+            <button type="button" class="btn-preset-lunch" data-preset="tue">화요일 (수제돈가스·어묵국)</button>
+            <button type="button" class="btn-preset-lunch" data-preset="wed">수요일 (강황카레·닭다리구이)</button>
+            <button type="button" class="btn-preset-lunch" data-preset="thu">목요일 (돈육장조림·쇠고기무국)</button>
+            <button type="button" class="btn-preset-lunch" data-preset="fri">금요일 (오리불고기·순두부백탕)</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="admin-form-card">
+        <h2 style="font-size: 1.55rem; font-weight: 900; margin-bottom: 14px;">현재 학생 화면(4단계)에 반영된 급식 메뉴 목록</h2>
+        <div class="admin-items-list" id="lunchManageList">
+          <!-- 급식 목록 동적 렌더링 -->
+        </div>
+      </div>
+    </section>
+
+    <!-- [탭 3] 오늘의 한 문장 데이터베이스 관리 -->
+    <section class="admin-tab-pane" id="tabPane_sentences">
+      <div class="admin-form-card">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 8px;">
+          <div>
+            <h2 style="font-size: 1.55rem; font-weight: 900;">오늘 출제 문장 지정 현황</h2>
+            <p style="font-size: 1.1rem; color: #475569; margin-top: 4px;">
+              현재 상태: <strong id="adminCurrentSentenceDisplay" style="color: #1e3a8a; font-size: 1.25rem;">(무작위 출제 모드)</strong>
+            </p>
+          </div>
+          <button type="button" class="btn-3d btn-secondary" id="btnResetRandomSentence" style="min-height: 52px; font-size: 1.15rem; padding: 8px 18px;">
+            🎲 무작위(랜덤) 출제 모드로 변경
+          </button>
+        </div>
+      </div>
+
+      <div class="admin-form-card">
+        <h2 style="font-size: 1.55rem; font-weight: 900; margin-bottom: 6px;">새 문장 데이터베이스 등록</h2>
+        <p style="font-size: 1.1rem; color: #475569;">동요 가사, 시 구절, 격려 문구, 속담 등을 추가하세요. (겹받침·이중모음 모두 완벽 지원)</p>
+
+        <form id="addSentenceForm" class="form-row">
+          <select id="sentenceCategorySelect" class="form-select" aria-label="문장 카테고리">
+            <option value="동요">동요</option>
+            <option value="시">시</option>
+            <option value="응원">응원/격려</option>
+            <option value="명언">명언</option>
+            <option value="속담">속담</option>
+            <option value="일상">일상 생활</option>
+          </select>
+          <input type="text" id="sentenceTextInput" class="form-input" placeholder="문장 입력 (예: 맑은 하늘이 참 예쁘다)" required>
+          <button type="submit" class="btn-3d btn-primary" style="min-height: 60px;">+ 문장 등록</button>
+        </form>
+      </div>
+
+      <div class="admin-form-card">
+        <h2 style="font-size: 1.55rem; font-weight: 900; margin-bottom: 14px;">문장 데이터베이스 목록</h2>
+        <div class="admin-items-list" id="sentenceManageList">
+          <!-- 문장 목록 동적 렌더링 -->
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>
