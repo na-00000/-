@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>매일 국어 배움터 - 양산희망학교 맞춤형 웹 접근성 학습</title>
+
+  <!-- 웹 접근성 및 고대비 3D 스타일시트 연동 -->
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/keyboard.css">
+  <link rel="stylesheet" href="css/assets/weather.css">
+  <link rel="stylesheet" href="css/assets/emotion.css">
+  <link rel="stylesheet" href="css/assets/components.css">
+</head>
+<body>
+
+  <!-- 태블릿 PC 가로 화면(16:10 / 16:9) 최적화 컨테이너 -->
+  <div class="app-container" role="main">
+
+    <!-- 1. 상단 공통 헤더 (로고, 5단계 진행도 인디케이터, 목소리 설정, 교사 관리) -->
+    <header class="app-header">
+      <div class="logo-area">
+        <span class="logo-icon" aria-hidden="true">📖</span>
+        <h1 class="app-title">매일 국어</h1>
+        <span class="school-sub-badge">양산희망학교</span>
+      </div>
+
+      <!-- 5단계 진행도 인디케이터 -->
+      <nav class="step-indicator-bar" aria-label="과제 진행 단계">
+        <div class="step-node current" data-step="1" role="button" tabindex="0">
+          <span class="step-num">1</span>
+          <span class="step-text">날짜</span>
+        </div>
+        <div class="step-node" data-step="2" role="button" tabindex="0">
+          <span class="step-num">2</span>
+          <span class="step-text">날씨</span>
+        </div>
+        <div class="step-node" data-step="3" role="button" tabindex="0">
+          <span class="step-num">3</span>
+          <span class="step-text">기분</span>
+        </div>
+        <div class="step-node" data-step="4" role="button" tabindex="0">
+          <span class="step-num">4</span>
+          <span class="step-text">급식</span>
+        </div>
+        <div class="step-node" data-step="5" role="button" tabindex="0">
+          <span class="step-num">5</span>
+          <span class="step-text">문장 쓰기</span>
+        </div>
+      </nav>
+
+      <!-- 우측 유틸리티 도구 (청소년 목소리 설정 & 교사 관리자 이동) -->
+      <div class="header-tools">
+        <button type="button" class="btn-3d voice-setting-btn" id="btnOpenVoiceModal" aria-label="청소년 목소리 및 소리 크기 설정">
+          👦 목소리 설정
+        </button>
+        <a href="admin.html" class="btn-3d admin-link-btn" title="교사용 관리자 페이지로 이동" aria-label="교사 관리자 모드 이동">
+          ⚙️ 교사 관리
+        </a>
+      </div>
+    </header>
+
+    <!-- 2. 메인 음성 안내 및 시각 가이드 배너 (상시 TTS 음성 지원 + 이전 단계 이동) -->
+    <section class="instruction-banner" aria-live="polite">
+      <div class="instruction-text-group">
+        <span class="instruction-badge" id="stepBadge">1단계</span>
+        <span class="instruction-text" id="instructionText">달력에서 파란색 오늘 날짜를 찾아 눌러보세요!</span>
+      </div>
+
+      <div class="banner-actions">
+        <button type="button" class="btn-3d btn-secondary" id="btnPrevStep" style="display: none; min-height: 76px; font-size: 1.35rem; padding: 10px 22px;" aria-label="이전 단계로 돌아가기">
+          ◀ 이전 단계
+        </button>
+
+        <!-- 대형 TTS 스피커 버튼 (최소 76px x 76px 이상) -->
+        <button type="button" class="tts-speaker-btn" id="btnInstructionTTS" title="안내 음성 크게 다시 듣기" aria-label="안내 음성 다시 듣기">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#0f172a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- 3. 메인 스테이지 영역 (5단계 전환 뷰 - 태블릿 가로 화면 원스크린) -->
+    <main class="stage-container">
+
+      <!-- ====================================================================
+           [1단계] 오늘 날짜 선택 (대형 달력 그리드)
+           ==================================================================== -->
+      <section class="step-section active" id="stepSection_1" aria-label="1단계: 오늘 날짜 선택">
+        <div class="calendar-wrapper">
+          <div class="calendar-header">
+            <div class="calendar-title-group">
+              <h2 class="calendar-month-title" id="calendarMonthTitle">2026년 11월</h2>
+              <span class="today-hint-pill" id="todayHintText">💡 오늘은 11월 5일이에요!</span>
+            </div>
+
+            <div style="display: flex; gap: 16px;">
+              <button type="button" class="btn-3d btn-secondary" id="btnCalPrevMonth" style="min-height: 64px; min-width: 76px; padding: 8px 16px; font-size: 1.2rem;" aria-label="이전 달 보기">
+                ◀ 이전달
+              </button>
+              <button type="button" class="btn-3d btn-primary" id="btnCalGoToday" style="min-height: 64px; min-width: 96px; padding: 8px 18px; font-size: 1.2rem;" aria-label="이번 달 오늘로 이동">
+                오늘 달력
+              </button>
+              <button type="button" class="btn-3d btn-secondary" id="btnCalNextMonth" style="min-height: 64px; min-width: 76px; padding: 8px 16px; font-size: 1.2rem;" aria-label="다음 달 보기">
+                다음달 ▶
+              </button>
+            </div>
+          </div>
+
+          <div class="calendar-weekdays" aria-hidden="true">
+            <div class="weekday sun">일</div>
+            <div class="weekday">월</div>
+            <div class="weekday">화</div>
+            <div class="weekday">수</div>
+            <div class="weekday">목</div>
+            <div class="weekday">금</div>
+            <div class="weekday sat">토</div>
+          </div>
+
+          <div class="calendar-grid" id="calendarGrid" role="grid" aria-label="날짜 선택 달력">
+            <!-- 자바스크립트로 대형 날짜 버튼(76px+) 동적 생성 -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           [2단계] 오늘의 날씨 선택 (CSS/SVG 고해상도 애니메이션 카드 4종)
+           ==================================================================== -->
+      <section class="step-section" id="stepSection_2" aria-label="2단계: 오늘의 날씨 선택">
+        <div class="choice-grid-4" role="group" aria-label="오늘의 날씨 목록">
+
+          <!-- 1. 맑음 (해 자전 & 맥박 애니메이션) -->
+          <button type="button" class="weather-card" data-weather="sunny" aria-label="날씨: 맑음">
+            <div class="weather-graphic" aria-hidden="true">
+              <div class="sun-container">
+                <div class="sun-core"></div>
+                <div class="sun-rays">
+                  <span></span><span></span><span></span><span></span>
+                  <span></span><span></span><span></span><span></span>
+                </div>
+              </div>
+            </div>
+            <span class="weather-label">맑음</span>
+          </button>
+
+          <!-- 2. 흐림 (구름 부유 애니메이션) -->
+          <button type="button" class="weather-card" data-weather="cloudy" aria-label="날씨: 흐림">
+            <div class="weather-graphic" aria-hidden="true">
+              <div class="cloud-container">
+                <div class="cloud-body">
+                  <div class="cloud-bubble-1"></div>
+                  <div class="cloud-bubble-2"></div>
+                </div>
+              </div>
+            </div>
+            <span class="weather-label">흐림</span>
+          </button>
+
+          <!-- 3. 비 (비구름 & 빗방울 낙하 애니메이션) -->
+          <button type="button" class="weather-card" data-weather="rainy" aria-label="날씨: 비">
+            <div class="weather-graphic" aria-hidden="true">
+              <div class="rain-container">
+                <div class="rain-cloud"></div>
+                <div class="rain-drops">
+                  <div class="drop"></div>
+                  <div class="drop"></div>
+                  <div class="drop"></div>
+                </div>
+              </div>
+            </div>
+            <span class="weather-label">비</span>
+          </button>
+
+          <!-- 4. 눈 (눈구름 & 눈송이 살랑살랑 흔들림 애니메이션) -->
+          <button type="button" class="weather-card" data-weather="snowy" aria-label="날씨: 눈">
+            <div class="weather-graphic" aria-hidden="true">
+              <div class="snow-container">
+                <div class="snow-cloud"></div>
+                <div class="snow-flakes">
+                  <div class="flake"></div>
+                  <div class="flake"></div>
+                  <div class="flake"></div>
+                </div>
+              </div>
+            </div>
+            <span class="weather-label">눈</span>
+          </button>
+
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           [3단계] 오늘의 나의 기분 선택 (감정 표정 캐릭터 가로 와이드 4종 카드)
+           ==================================================================== -->
+      <section class="step-section" id="stepSection_3" aria-label="3단계: 나의 기분 선택">
+        <div class="choice-grid-4" role="group" aria-label="오늘의 기분 표정 목록">
+
+          <!-- 1. 기쁨 (Happy) -->
+          <button type="button" class="emotion-card happy" data-emotion="happy" aria-label="기분: 기뻐요">
+            <div class="character-face face-happy" aria-hidden="true">
+              <div class="eye left"></div>
+              <div class="eye right"></div>
+              <div class="blush left"></div>
+              <div class="blush right"></div>
+              <div class="mouth"></div>
+            </div>
+            <span class="emotion-label">기뻐요 😊</span>
+          </button>
+
+          <!-- 2. 슬픔 (Sad) -->
+          <button type="button" class="emotion-card sad" data-emotion="sad" aria-label="기분: 슬퍼요">
+            <div class="character-face face-sad" aria-hidden="true">
+              <div class="eyebrow left"></div>
+              <div class="eyebrow right"></div>
+              <div class="eye left"></div>
+              <div class="eye right"></div>
+              <div class="tear"></div>
+              <div class="mouth"></div>
+            </div>
+            <span class="emotion-label">슬퍼요 😢</span>
+          </button>
+
+          <!-- 3. 화남 (Angry) -->
+          <button type="button" class="emotion-card angry" data-emotion="angry" aria-label="기분: 화나요">
+            <div class="character-face face-angry" aria-hidden="true">
+              <span class="steam left">💢</span>
+              <span class="steam right">💢</span>
+              <div class="eyebrow left"></div>
+              <div class="eyebrow right"></div>
+              <div class="eye left"></div>
+              <div class="eye right"></div>
+              <div class="mouth"></div>
+            </div>
+            <span class="emotion-label">화나요 😠</span>
+          </button>
+
+          <!-- 4. 즐거움 / 신남 (Excited) -->
+          <button type="button" class="emotion-card excited" data-emotion="excited" aria-label="기분: 신나요">
+            <div class="character-face face-excited" aria-hidden="true">
+              <div class="eye left"></div>
+              <div class="eye right"></div>
+              <div class="mouth"></div>
+            </div>
+            <span class="emotion-label">신나요 🤩</span>
+          </button>
+
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           [4단계] 양산희망학교 오늘의 급식 메뉴 선택 (자동 반영 & TTS 연동)
+           ==================================================================== -->
+      <section class="step-section" id="stepSection_4" aria-label="4단계: 양산희망학교 급식 메뉴 선택">
+        <div class="diet-source-bar">
+          <div class="diet-school-info">
+            <span class="school-diet-badge">🏫 양산희망학교</span>
+            <span class="diet-date-label" id="dietDateLabel">오늘의 중식 식단</span>
+            <span class="diet-sync-status" id="dietSyncStatus">✅ 자동 반영됨</span>
+          </div>
+
+          <div class="diet-actions">
+            <button type="button" class="btn-3d btn-primary" id="btnSyncYangsanDiet" style="min-height: 58px; font-size: 1.15rem; padding: 8px 18px;">
+              🔄 식단 자동 동기화
+            </button>
+            <a href="https://huimang-s.gne.go.kr/huimang-s/dv/dietView/selectDietCalendarView.do?mi=152211" target="_blank" rel="noopener noreferrer" class="btn-3d btn-secondary" style="min-height: 58px; font-size: 1.15rem; padding: 8px 18px;">
+              🔗 학교 식단표 원문
+            </a>
+          </div>
+        </div>
+
+        <div class="lunch-grid" id="lunchMenuGrid" role="group" aria-label="양산희망학교 오늘의 급식 메뉴 카드 목록">
+          <!-- 자바스크립트로 양산희망학교 급식 메뉴 대형 카드 동적 렌더링 -->
+        </div>
+      </section>
+
+      <!-- ====================================================================
+           [5단계] 오늘의 한 문장 따라 쓰기 & 맞춤형 대형 한글 자판
+           ==================================================================== -->
+      <section class="step-section" id="stepSection_5" aria-label="5단계: 오늘의 한 문장 따라 쓰기">
+        <div class="writing-stage">
+
+          <!-- 상단 목표 문장 및 글자 박스 카드 -->
+          <div class="target-sentence-card">
+            <div class="target-sentence-left">
+              <span class="target-category-badge" id="sentenceCategoryBadge">오늘의 문장</span>
+              <div class="sentence-boxes-row" id="sentenceBoxesContainer" role="region" aria-label="글자 따라 쓰기 진행 상자">
+                <!-- 자바스크립트로 목표 글자 & 입력 글자 박스 동적 생성 -->
+              </div>
+            </div>
+
+            <button type="button" class="btn-3d sentence-tts-btn" id="btnSentenceTTS" aria-label="문장 소리 내어 듣기">
+              🔊 문장 다시 듣기
+            </button>
+          </div>
+
+          <!-- 하단 맞춤형 커스텀 한글 대형 글자판 (keyboard.css / keyboard.js) -->
+          <div class="keyboard-container" id="keyboardRoot" role="region" aria-label="접근성 한글 자판">
+            <!-- 자바스크립트로 대형 2단 자판 DOM 렌더링 -->
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <!-- ========================================================================
+       청소년 남자아이 목소리 & 음량 설정 모달
+       ======================================================================== -->
+  <div class="voice-modal-overlay" id="voiceSettingsModal" role="dialog" aria-modal="true" aria-labelledby="voiceModalTitle">
+    <div class="voice-modal-card">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <h2 id="voiceModalTitle" style="font-size: 1.85rem; font-weight: 900; color: #1e3a8a;">
+          👦 청소년 남자아이 음성 & 소리 설정
+        </h2>
+        <button type="button" class="btn-3d btn-secondary" id="btnCloseVoiceModal" style="min-height: 56px; min-width: 76px; padding: 6px 18px; font-size: 1.2rem;">
+          닫기 ✕
+        </button>
+      </div>
+
+      <p style="font-size: 1.15rem; font-weight: 700; color: #334155;">
+        한국어에 최적화된 청소년 남자아이 목소리 톤과 빠르기를 선택하고 소리를 들어보세요. (음량 100% 최대 부스트 적용됨)
+      </p>
+
+      <div>
+        <div style="font-size: 1.2rem; font-weight: 900; margin-bottom: 10px;">1. 청소년 목소리 스타일 프리셋</div>
+        <div class="voice-preset-grid">
+          <button type="button" class="voice-preset-btn active" data-preset="teen_boy">
+            👦 활기찬 청소년<br><small>(기본 추천)</small>
+          </button>
+          <button type="button" class="voice-preset-btn" data-preset="bright_boy">
+            🧒 명랑한 소년<br><small>(맑고 높은 톤)</small>
+          </button>
+          <button type="button" class="voice-preset-btn" data-preset="calm_boy">
+            🧑 차분한 청소년<br><small>(또박또박 톤)</small>
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <label for="koreanVoiceSelect" style="display: block; font-size: 1.15rem; font-weight: 900; margin-bottom: 6px;">
+          2. 기기에 설치된 한국어 음성 엔진 선택
+        </label>
+        <select id="koreanVoiceSelect" style="width: 100%; height: 56px; border: 3px solid #0f172a; border-radius: 14px; padding: 0 14px; font-size: 1.15rem; font-weight: 700;">
+          <option value="">자동 (청소년 남자아이 최적 보이스)</option>
+        </select>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div>
+          <label for="voicePitchRange" style="display: block; font-size: 1.15rem; font-weight: 900; margin-bottom: 6px;">
+            목소리 톤(원음 1.0 권장): <span id="pitchValueLabel" style="color: #2563eb;">1.00</span>
+          </label>
+          <input type="range" id="voicePitchRange" min="0.92" max="1.08" step="0.02" value="1.00" style="width: 100%; height: 32px;">
+        </div>
+        <div>
+          <label for="voiceRateRange" style="display: block; font-size: 1.15rem; font-weight: 900; margin-bottom: 6px;">
+            말하기 속도(Rate): <span id="rateValueLabel" style="color: #2563eb;">0.96</span>
+          </label>
+          <input type="range" id="voiceRateRange" min="0.75" max="1.15" step="0.02" value="0.96" style="width: 100%; height: 32px;">
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 6px;">
+        <button type="button" class="btn-3d btn-primary" id="btnTestVoice" style="width: 100%; min-height: 68px; font-size: 1.4rem;">
+          🔊 청소년 남자아이 목소리 테스트 듣기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       5단계 최종 완료 축하 모달 & 폭죽 캔버스 (Confetti)
+       ======================================================================== -->
+  <div class="celebration-overlay" id="celebrationModal" role="dialog" aria-modal="true" aria-labelledby="celebrationTitle">
+    <div class="celebration-card">
+      <div style="font-size: 4.5rem; margin-bottom: 8px;">🎉</div>
+      <h2 class="celebration-title" id="celebrationTitle">참 잘했어요!</h2>
+      <p class="celebration-subtitle">
+        오늘의 매일 국어 5단계를<br>
+        모두 멋지게 완료했습니다!
+      </p>
+
+      <div style="display: flex; gap: 20px; justify-content: center;">
+        <button type="button" class="btn-3d btn-primary" id="btnRestartTask" style="min-height: 76px; font-size: 1.5rem;">
+          🔄 처음부터 다시하기
+        </button>
+        <a href="admin.html" class="btn-3d btn-success" style="min-height: 76px; font-size: 1.5rem;">
+          📋 교사 기록 확인
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- 폭죽 캔버스 레이어 -->
+  <canvas id="confettiCanvas"></canvas>
+
+  <!-- 자바스크립트 엔진 파일 로드 -->
+  <script src="js/audio.js"></script>
+  <script src="js/keyboard.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

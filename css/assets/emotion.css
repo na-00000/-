@@ -1,0 +1,322 @@
+/* ==========================================================================
+   [CSS Assets] 감정 표정 캐릭터 그래픽 (순수 CSS & inline SVG 기술)
+   - 뇌성마비/발달장애 학생 맞춤형 고대비 표정 그래픽 (기쁨, 슬픔, 화남, 즐거움)
+   - 외부 이미지 URL 절대 미사용
+   ========================================================================== */
+
+/* 감정 카드 공통 스타일 */
+.emotion-card {
+  position: relative;
+  width: 100%;
+  min-height: 220px;
+  background: #ffffff;
+  border: 4px solid #1e293b;
+  border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.2s ease;
+  box-shadow: 0 10px 0 #0f172a, 0 16px 25px rgba(0, 0, 0, 0.15);
+  overflow: hidden;
+  padding: 24px 16px;
+}
+
+.emotion-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 0 #0f172a, 0 20px 30px rgba(0, 0, 0, 0.2);
+}
+
+.emotion-card:active,
+.emotion-card.active {
+  transform: translateY(6px);
+  box-shadow: 0 4px 0 #0f172a, 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+.emotion-card:focus-visible {
+  outline: 6px solid #f59e0b;
+  outline-offset: 4px;
+}
+
+.emotion-label {
+  font-size: 2.1rem;
+  font-weight: 900;
+  color: #0f172a;
+  letter-spacing: -0.5px;
+}
+
+/* 캐릭터 얼굴 기본 바디 */
+.character-face {
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  border: 5px solid #0f172a;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset -4px -4px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* --------------------------------------------------------------------------
+   1. 기쁨 (Happy) 캐릭터
+   - 맑고 화사한 노랑 얼굴, 눈달린 미소, 발그레한 볼, 신나는 바운스
+   -------------------------------------------------------------------------- */
+.face-happy {
+  background: radial-gradient(circle at 35% 35%, #fef08a, #facc15 70%, #eab308);
+  animation: happy-bounce 2s ease-in-out infinite;
+}
+
+.emotion-card.happy:hover {
+  border-color: #eab308;
+  background-color: #fefce8;
+}
+
+/* 기쁨 눈 */
+.face-happy .eye {
+  position: absolute;
+  top: 36px;
+  width: 20px;
+  height: 12px;
+  border-top: 5px solid #0f172a;
+  border-radius: 12px 12px 0 0;
+}
+.face-happy .eye.left { left: 24px; }
+.face-happy .eye.right { right: 24px; }
+
+/* 볼터치 */
+.face-happy .blush {
+  position: absolute;
+  top: 52px;
+  width: 18px;
+  height: 12px;
+  background: #f43f5e;
+  border-radius: 50%;
+  opacity: 0.75;
+}
+.face-happy .blush.left { left: 16px; }
+.face-happy .blush.right { right: 16px; }
+
+/* 기쁨 미소 */
+.face-happy .mouth {
+  position: absolute;
+  bottom: 24px;
+  width: 44px;
+  height: 24px;
+  background: #be123c;
+  border: 4px solid #0f172a;
+  border-radius: 0 0 44px 44px;
+  overflow: hidden;
+}
+.face-happy .mouth::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 10px;
+  width: 24px;
+  height: 16px;
+  background: #fda4af;
+  border-radius: 50%;
+}
+
+@keyframes happy-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px) scale(1.03); }
+}
+
+/* --------------------------------------------------------------------------
+   2. 슬픔 (Sad) 캐릭터
+   - 차분한 하늘/파랑 얼굴, 축 처진 입과 눈, 뚝뚝 떨어지는 눈물방울
+   -------------------------------------------------------------------------- */
+.face-sad {
+  background: radial-gradient(circle at 35% 35%, #bae6fd, #60a5fa 75%, #3b82f6);
+  animation: sad-droop 3s ease-in-out infinite alternate;
+}
+
+.emotion-card.sad:hover {
+  border-color: #3b82f6;
+  background-color: #f0f9ff;
+}
+
+.face-sad .eyebrow {
+  position: absolute;
+  top: 26px;
+  width: 22px;
+  height: 5px;
+  background: #0f172a;
+  border-radius: 4px;
+}
+.face-sad .eyebrow.left { left: 20px; transform: rotate(18deg); }
+.face-sad .eyebrow.right { right: 20px; transform: rotate(-18deg); }
+
+.face-sad .eye {
+  position: absolute;
+  top: 40px;
+  width: 14px;
+  height: 14px;
+  background: #0f172a;
+  border-radius: 50%;
+}
+.face-sad .eye.left { left: 24px; }
+.face-sad .eye.right { right: 24px; }
+
+.face-sad .tear {
+  position: absolute;
+  top: 54px;
+  left: 20px;
+  width: 10px;
+  height: 16px;
+  background: #38bdf8;
+  border: 2px solid #0284c7;
+  border-radius: 50% 0 50% 50%;
+  transform: rotate(-45deg);
+  animation: tear-fall 1.8s ease-in infinite;
+}
+
+.face-sad .mouth {
+  position: absolute;
+  bottom: 24px;
+  width: 32px;
+  height: 14px;
+  border-top: 5px solid #0f172a;
+  border-radius: 16px 16px 0 0;
+}
+
+@keyframes tear-fall {
+  0% { transform: translateY(0) scale(0.6) rotate(-45deg); opacity: 0; }
+  35% { opacity: 1; }
+  100% { transform: translateY(22px) scale(1.1) rotate(-45deg); opacity: 0; }
+}
+
+@keyframes sad-droop {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(4px) rotate(-2deg); }
+}
+
+/* --------------------------------------------------------------------------
+   3. 화남 (Angry) 캐릭터
+   - 붉고 뜨거운 얼굴, 찌푸린 눈썹, 부들부들 씩씩대는 진동 애니메이션
+   -------------------------------------------------------------------------- */
+.face-angry {
+  background: radial-gradient(circle at 35% 35%, #fca5a5, #ef4444 75%, #b91c1c);
+  animation: angry-shake 0.4s ease-in-out infinite alternate;
+}
+
+.emotion-card.angry:hover {
+  border-color: #ef4444;
+  background-color: #fef2f2;
+}
+
+.face-angry .eyebrow {
+  position: absolute;
+  top: 30px;
+  width: 26px;
+  height: 6px;
+  background: #0f172a;
+  border-radius: 3px;
+}
+.face-angry .eyebrow.left { left: 18px; transform: rotate(-22deg); }
+.face-angry .eyebrow.right { right: 18px; transform: rotate(22deg); }
+
+.face-angry .eye {
+  position: absolute;
+  top: 42px;
+  width: 12px;
+  height: 12px;
+  background: #0f172a;
+  border-radius: 50%;
+}
+.face-angry .eye.left { left: 26px; }
+.face-angry .eye.right { right: 26px; }
+
+.face-angry .mouth {
+  position: absolute;
+  bottom: 24px;
+  width: 36px;
+  height: 12px;
+  border: 4px solid #0f172a;
+  background: #7f1d1d;
+  border-radius: 6px;
+}
+
+/* 화난 뿔/불꽃 심볼 */
+.face-angry .steam {
+  position: absolute;
+  top: -16px;
+  font-size: 1.5rem;
+  animation: steam-float 1s ease-in-out infinite alternate;
+}
+.face-angry .steam.left { left: 10px; }
+.face-angry .steam.right { right: 10px; }
+
+@keyframes angry-shake {
+  0% { transform: translate(-1.5px, 0) rotate(-1deg); }
+  100% { transform: translate(1.5px, 0) rotate(1deg); }
+}
+
+@keyframes steam-float {
+  0% { transform: translateY(0); opacity: 0.6; }
+  100% { transform: translateY(-4px); opacity: 1; }
+}
+
+/* --------------------------------------------------------------------------
+   4. 즐거움 / 신남 (Excited) 캐릭터
+   - 싱그러운 에메랄드/주황 얼굴, 반짝이는 별 눈, 활짝 웃는 입, 신나는 씰룩거림
+   -------------------------------------------------------------------------- */
+.face-excited {
+  background: radial-gradient(circle at 35% 35%, #a7f3d0, #34d399 70%, #059669);
+  animation: excited-wiggle 1.2s ease-in-out infinite;
+}
+
+.emotion-card.excited:hover {
+  border-color: #059669;
+  background-color: #ecfdf5;
+}
+
+/* 반짝이는 별 눈 (SVG 인라인 형태 또는 CSS 별 모양) */
+.face-excited .eye {
+  position: absolute;
+  top: 34px;
+  width: 20px;
+  height: 20px;
+  background: #0f172a;
+  clip-path: polygon(50% 0%, 65% 35%, 100% 50%, 65% 65%, 50% 100%, 35% 65%, 0% 50%, 35% 35%);
+  animation: star-sparkle 1s ease-in-out infinite alternate;
+}
+.face-excited .eye.left { left: 22px; }
+.face-excited .eye.right { right: 22px; }
+
+.face-excited .mouth {
+  position: absolute;
+  bottom: 20px;
+  width: 48px;
+  height: 28px;
+  background: #b91c1c;
+  border: 4px solid #0f172a;
+  border-radius: 0 0 50px 50px;
+  overflow: hidden;
+}
+.face-excited .mouth::after {
+  content: "";
+  position: absolute;
+  bottom: -4px;
+  left: 12px;
+  width: 26px;
+  height: 20px;
+  background: #f472b6;
+  border-radius: 50%;
+}
+
+@keyframes excited-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg) scale(1.04); }
+  75% { transform: rotate(5deg) scale(1.04); }
+}
+
+@keyframes star-sparkle {
+  0% { transform: scale(0.9); }
+  100% { transform: scale(1.2); }
+}
