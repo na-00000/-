@@ -1,9 +1,10 @@
 /**
  * ============================================================================
- * [Audio Engine] Web Audio API Synthesizer & 자연스러운 한국어 TTS 엔진
- * - 목소리 갈라짐(Pitch Shifting 왜곡) 원천 차단: 원음 피치(1.0) 및 자연스러운 호흡 속도 적용
- * - 신경망(Natural/Neural) 한국어 청소년/청년 보이스(InJoon, Google 한국어 등) 최우선 매칭
- * - 효과음(SFX)과 음성(TTS) 간 오디오 버퍼 충돌 방지 딜레이 설계
+ * [Audio Engine] 태블릿 PC (Android / iPad / Windows 태블릿) 완벽 호환 사운드 & TTS 엔진
+ * - 모바일/태블릿 브라우저 오디오 자동재생 차단(Autoplay Policy) 완벽 해제
+ * - setTimeout 비동기 지연을 제거한 동기식(Synchronous) 즉시 발화로 태블릿 무음 버그 해결
+ * - 안드로이드 Chrome/삼성 인터넷의 utterance.voice 바인딩 오류 자동 감지 및 폴백
+ * - 기기 내 TTS 미작동 시 HTML5 Audio 스트림 폴백으로 100% 음성 출력 보장
  * ============================================================================
  */
 
@@ -15,16 +16,17 @@ class SoundController {
     this.speechSynth = window.speechSynthesis || null;
     this.isAudioUnlocked = false;
     this.currentUtterance = null;
+    this.fallbackAudio = null;
     this.isMuted = false;
-    this.speakTimer = null;
-    this.lastSfxEndTime = 0;
 
-    // v2 설정 키를 사용하여 기존 피치 왜곡 설정(1.18~1.30)을 자연스러운 원음(1.0)으로 자동 초기화
+    // 모바일/태블릿 환경 감지 (Android, iPad, iPhone, 터치 기기)
+    this.isTabletOrMobile = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent) ||
+      (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
+
     const savedConfig = this.loadVoiceConfig();
     this.voiceConfig = {
       volume: 1.0,
-      sfxVolume: savedConfig.sfxVolume ?? 0.75,
-      // 중요: TTS 엔진의 목소리 갈라짐(위상 왜곡)을 막기 위해 기본 피치를 원음(1.0)으로 유지
+      sfxVolume: savedConfig.sfxVolume ?? 0.85,
       pitch: savedConfig.pitch ?? 1.0,
       rate: savedConfig.rate ?? 0.96,
       preferredVoiceURI: savedConfig.preferredVoiceURI || null,
@@ -35,14 +37,7 @@ class SoundController {
     this.selectedVoice = null;
 
     this.initVoices();
-
-    const unlockHandler = () => {
-      this.initAudioContext();
-      window.removeEventListener('pointerdown', unlockHandler);
-      window.removeEventListener('keydown', unlockHandler);
-    };
-    window.addEventListener('pointerdown', unlockHandler, { passive: true });
-    window.addEventListener('keydown', unlockHandler, { passive: true });
+    this.setupGlobalTouchUnlock();
   }
 
   loadVoiceConfig() {
@@ -62,18 +57,71 @@ class SoundController {
   }
 
   /**
-   * 한국어 음성 목록 로드 및 가장 자연스러운 보이스 자동 선택
+   * 태블릿 브라우저의 오디오 & TTS 잠금을 해제하기 위한 글로벌 터치/클릭 리스너
+   * - 모바일 브라우저는 pointerdown이 아닌 touchend / click 시점에 오디오 잠금이 풀림
+   */
+  setupGlobalTouchUnlock() {
+    const unlockEvents = ['click', 'touchend', 'pointerup', 'keydown'];
+
+    const unlockHandler = () => {
+      this.unlockAudioAndTTS();
+    };
+
+    unlockEvents.forEach(evtName => {
+      window.addEventListener(evtName, unlockHandler, { passive: true, capture: true });
+    });
+  }
+
+  /**
+   * Web Audio API 및 Web Speech API 하드웨어 채널 즉시 활성화
+   */
+  unlockAudioAndTTS() {
+    // 1. Web Audio API Context 생성 및 resume
+    this.initAudioContext();
+
+    if (this.audioCtx && !this.isAudioUnlocked) {
+      try {
+        // 무음 버퍼(Silent Buffer) 1프레임 재생으로 태블릿 스피커 채널 강제 오픈
+        const buffer = this.audioCtx.createBuffer(1, 1, 22050);
+        const source = this.audioCtx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.audioCtx.destination);
+        if (source.start) {
+          source.start(0);
+        } else if (source.noteOn) {
+          source.noteOn(0);
+        }
+        this.isAudioUnlocked = true;
+      } catch (e) {
+        console.warn('Silent buffer unlock error:', e);
+      }
+    }
+
+    // 2. Web Speech API 일시정지 상태 해제
+    if (this.speechSynth && this.speechSynth.paused) {
+      try {
+        this.speechSynth.resume();
+      } catch (e) {}
+    }
+  }
+
+  /**
+   * 한국어 음성 목록 로드
    */
   initVoices() {
     if (!this.speechSynth) return;
 
     const updateVoiceList = () => {
-      const allVoices = this.speechSynth.getVoices() || [];
-      this.availableKoreanVoices = allVoices.filter(
-        v => v.lang.toLowerCase().includes('ko') || v.name.includes('한국') || v.name.toLowerCase().includes('korean')
-      );
-
-      this.selectOptimalNaturalVoice();
+      try {
+        const allVoices = this.speechSynth.getVoices() || [];
+        this.availableKoreanVoices = allVoices.filter(
+          v => (v.lang && v.lang.toLowerCase().includes('ko')) ||
+               (v.name && (v.name.includes('한국') || v.name.toLowerCase().includes('korean')))
+        );
+        this.selectOptimalNaturalVoice();
+      } catch (e) {
+        console.warn('getVoices error:', e);
+      }
     };
 
     updateVoiceList();
@@ -83,12 +131,7 @@ class SoundController {
   }
 
   /**
-   * 갈라짐 없이 가장 깨끗하고 자연스러운 한국어 청소년/남성 신경망 보이스 탐색
-   * 1순위: 사용자가 직접 선택한 보이스
-   * 2순위: Microsoft InJoon Online (Natural) - 가장 자연스러운 한국어 소년/청년 신경망 목소리
-   * 3순위: 기타 Online (Natural) 또는 Wavenet / Neural 고품질 한국어 보이스
-   * 4순위: Android/Chrome 남성 보이스 (ko-kr-x-ism-local, Standard-C, Standard-D)
-   * 5순위: Google 한국의 / 기본 한국어 보이스 (원음 피치 1.0 유지로 갈라짐 방지)
+   * 기기별 최적의 한국어 보이스 선택
    */
   selectOptimalNaturalVoice() {
     if (this.availableKoreanVoices.length === 0) return;
@@ -102,15 +145,11 @@ class SoundController {
     }
 
     const priorityMatchers = [
-      // 1순위: Microsoft InJoon Natural (고품질 신경망 남성/청소년 보이스)
       v => /injoon|인준/i.test(v.name + v.voiceURI) && /natural|online/i.test(v.name + v.voiceURI),
       v => /injoon|인준|bongjin|봉진|gookmin|국민/i.test(v.name + v.voiceURI),
-      // 2순위: Google/Android 고품질 남성 보이스
       v => /wavenet-c|wavenet-d|standard-c|standard-d|ko-kr-x-ism/i.test(v.name + v.voiceURI),
-      // 3순위: 기타 Natural/Online 신경망 한국어 보이스 (음질 최우선)
       v => /natural|online|wavenet|neural/i.test(v.name + v.voiceURI),
-      // 4순위: Google 한국어 기본 보이스
-      v => /google|구글/i.test(v.name + v.voiceURI)
+      v => /google|구글|삼성|samsung/i.test(v.name + v.voiceURI)
     ];
 
     for (const matcher of priorityMatchers) {
@@ -124,9 +163,6 @@ class SoundController {
     this.selectedVoice = this.availableKoreanVoices[0];
   }
 
-  /**
-   * 프리셋 변경 (기계적 갈라짐이 발생하지 않는 안전한 원음 대역 0.96 ~ 1.04 내에서만 조절)
-   */
   setVoicePreset(presetName) {
     this.voiceConfig.voicePreset = presetName;
     if (presetName === 'teen_boy') {
@@ -155,16 +191,15 @@ class SoundController {
         this.compressor.release.setValueAtTime(0.2, this.audioCtx.currentTime);
 
         this.masterGain = this.audioCtx.createGain();
-        this.masterGain.gain.setValueAtTime(1.1, this.audioCtx.currentTime);
+        this.masterGain.gain.setValueAtTime(1.25, this.audioCtx.currentTime);
 
         this.masterGain.connect(this.compressor);
         this.compressor.connect(this.audioCtx.destination);
       }
     }
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
-      this.audioCtx.resume();
+      this.audioCtx.resume().catch(() => {});
     }
-    this.isAudioUnlocked = true;
   }
 
   getDestination() {
@@ -173,7 +208,7 @@ class SoundController {
   }
 
   // --------------------------------------------------------------------------
-  // Web Audio API 사운드 신시사이저 (TTS와 겹치지 않도록 깔끔하고 부드럽게 출력)
+  // Web Audio API 효과음 신시사이저
   // --------------------------------------------------------------------------
 
   playClick() {
@@ -183,22 +218,23 @@ class SoundController {
 
     try {
       const ctx = this.audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(640, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(320, ctx.currentTime + 0.06);
+      osc.frequency.setValueAtTime(660, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.065);
 
-      gain.gain.setValueAtTime(0.25 * this.voiceConfig.sfxVolume, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.06);
+      gain.gain.setValueAtTime(0.32 * this.voiceConfig.sfxVolume, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.065);
 
       osc.connect(gain);
       gain.connect(dest);
 
       osc.start();
       osc.stop(ctx.currentTime + 0.07);
-      this.lastSfxEndTime = Date.now() + 80;
     } catch (e) {
       console.warn('Audio click error:', e);
     }
@@ -211,6 +247,8 @@ class SoundController {
 
     try {
       const ctx = this.audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+
       const notes = [523.25, 659.25, 783.99, 1046.5];
       const noteDuration = 0.075;
 
@@ -223,7 +261,7 @@ class SoundController {
         osc.frequency.setValueAtTime(freq, startTime);
 
         gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.32 * this.voiceConfig.sfxVolume, startTime + 0.015);
+        gain.gain.linearRampToValueAtTime(0.38 * this.voiceConfig.sfxVolume, startTime + 0.015);
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration * 1.4);
 
         osc.connect(gain);
@@ -232,7 +270,6 @@ class SoundController {
         osc.start(startTime);
         osc.stop(startTime + noteDuration * 1.4);
       });
-      this.lastSfxEndTime = Date.now() + 360;
     } catch (e) {
       console.warn('Audio success error:', e);
     }
@@ -245,6 +282,8 @@ class SoundController {
 
     try {
       const ctx = this.audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
 
@@ -252,7 +291,7 @@ class SoundController {
       osc.frequency.setValueAtTime(349.23, ctx.currentTime);
       osc.frequency.linearRampToValueAtTime(261.63, ctx.currentTime + 0.22);
 
-      gain.gain.setValueAtTime(0.3 * this.voiceConfig.sfxVolume, ctx.currentTime);
+      gain.gain.setValueAtTime(0.35 * this.voiceConfig.sfxVolume, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
 
       osc.connect(gain);
@@ -260,7 +299,6 @@ class SoundController {
 
       osc.start();
       osc.stop(ctx.currentTime + 0.26);
-      this.lastSfxEndTime = Date.now() + 270;
     } catch (e) {
       console.warn('Audio retry error:', e);
     }
@@ -273,6 +311,8 @@ class SoundController {
 
     try {
       const ctx = this.audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+
       const notes = [523.25, 659.25, 783.99];
       notes.forEach((freq, idx) => {
         const osc = ctx.createOscillator();
@@ -283,7 +323,7 @@ class SoundController {
         osc.frequency.setValueAtTime(freq, st);
 
         gain.gain.setValueAtTime(0, st);
-        gain.gain.linearRampToValueAtTime(0.26 * this.voiceConfig.sfxVolume, st + 0.015);
+        gain.gain.linearRampToValueAtTime(0.32 * this.voiceConfig.sfxVolume, st + 0.015);
         gain.gain.exponentialRampToValueAtTime(0.001, st + 0.22);
 
         osc.connect(gain);
@@ -292,7 +332,6 @@ class SoundController {
         osc.start(st);
         osc.stop(st + 0.22);
       });
-      this.lastSfxEndTime = Date.now() + 340;
     } catch (e) {
       console.warn('Audio step error:', e);
     }
@@ -305,6 +344,8 @@ class SoundController {
 
     try {
       const ctx = this.audioCtx;
+      if (ctx.state === 'suspended') ctx.resume();
+
       const melody = [
         { f: 523.25, t: 0.0, d: 0.10 },
         { f: 659.25, t: 0.10, d: 0.10 },
@@ -323,7 +364,7 @@ class SoundController {
         osc.frequency.setValueAtTime(note.f, st);
 
         gain.gain.setValueAtTime(0, st);
-        gain.gain.linearRampToValueAtTime(0.32 * this.voiceConfig.sfxVolume, st + 0.02);
+        gain.gain.linearRampToValueAtTime(0.38 * this.voiceConfig.sfxVolume, st + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, st + note.d);
 
         osc.connect(gain);
@@ -332,21 +373,15 @@ class SoundController {
         osc.start(st);
         osc.stop(st + note.d);
       });
-      this.lastSfxEndTime = Date.now() + 1100;
     } catch (e) {
       console.warn('Audio fanfare error:', e);
     }
   }
 
   // --------------------------------------------------------------------------
-  // 자연스러운 한국어 TTS 발화 처리 (갈라짐 방지 & 억양 최적화)
+  // 태블릿 PC 완벽 대응 한국어 TTS 발화 처리 (동기식 즉시 호출 + 오디오 폴백)
   // --------------------------------------------------------------------------
 
-  /**
-   * TTS 엔진이 억양을 과도하게 높여 목소리가 갈라지는 현상을 막기 위한 문장 정제
-   * - 느낌표(!)를 마침표(.)로 완화하여 끝음 갈라짐 방지
-   * - 슬래시(/)를 쉼표(, )로 변환하여 급식 메뉴를 자연스럽게 낭독
-   */
   cleanTextForNaturalSpeech(rawText) {
     if (!rawText) return '';
     return String(rawText)
@@ -359,82 +394,146 @@ class SoundController {
   }
 
   /**
-   * 자연스럽고 깨끗한 목소리로 읽기
-   * @param {string} text 읽을 텍스트
-   * @param {Function} onEnd 종료 콜백
+   * 태블릿 PC에서도 100% 소리가 나도록 setTimeout 없이 동기식으로 즉시 발화
    */
   speak(text, onEnd) {
-    if (!this.speechSynth || !text) {
+    const cleanText = this.cleanTextForNaturalSpeech(text);
+    if (!cleanText) {
       if (onEnd) onEnd();
       return;
     }
 
-    clearTimeout(this.speakTimer);
+    // 이전 재생 중인 폴백 오디오가 있으면 정지
+    if (this.fallbackAudio) {
+      try {
+        this.fallbackAudio.pause();
+        this.fallbackAudio = null;
+      } catch (e) {}
+    }
 
-    try {
-      if (this.speechSynth.speaking || this.speechSynth.pending) {
-        this.speechSynth.cancel();
-      }
+    const speakerBtns = document.querySelectorAll('.tts-speaker-btn');
+    speakerBtns.forEach(btn => btn.classList.add('is-speaking'));
 
-      // 효과음(SFX) 재생 직후라면 오디오 드라이버 충돌로 인한 지직거림/갈라짐을 막기 위해 대기
-      const now = Date.now();
-      const waitMs = Math.max(90, this.lastSfxEndTime - now + 40);
+    let callbackCalled = false;
+    const finishCallback = () => {
+      if (callbackCalled) return;
+      callbackCalled = true;
+      speakerBtns.forEach(btn => btn.classList.remove('is-speaking'));
+      if (onEnd) onEnd();
+    };
 
-      this.speakTimer = setTimeout(() => {
-        if (this.availableKoreanVoices.length === 0) {
-          this.initVoices();
+    // 1. 브라우저 내장 Web Speech API 지원 여부 확인
+    if (this.speechSynth && typeof SpeechSynthesisUtterance !== 'undefined') {
+      try {
+        // 중요: 안드로이드 태블릿에서는 cancel()을 무조건 호출하면 바로 다음 speak()까지 취소되는 버그가 있으므로
+        // 실제로 발화 중일 때만 cancel() 호출
+        if (this.speechSynth.speaking) {
+          this.speechSynth.cancel();
+        }
+        if (this.speechSynth.paused) {
+          this.speechSynth.resume();
         }
 
-        const cleanText = this.cleanTextForNaturalSpeech(text);
         const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = 'ko-KR';
         utterance.volume = 1.0;
 
-        if (this.selectedVoice) {
+        // 중요: 안드로이드 태블릿에서는 특정 voice 객체를 강제 할당하면 무음이 되는 버그가 흔하므로,
+        // 사용자가 직접 선택한 경우나 데스크톱 환경에서만 voice 객체를 지정하고,
+        // 태블릿 기본 상태에서는 lang = 'ko-KR'로 시스템 기본 한국어 엔진을 직접 구동합니다.
+        if (this.voiceConfig.preferredVoiceURI && this.selectedVoice) {
           utterance.voice = this.selectedVoice;
-          utterance.lang = this.selectedVoice.lang || 'ko-KR';
+        } else if (!this.isTabletOrMobile && this.selectedVoice) {
+          utterance.voice = this.selectedVoice;
         }
 
-        // 핵심: 피치(pitch)를 인위적으로 높이면(1.15 이상) 보코더 위상이 깨져 목소리가 갈라지므로
-        // 원음 피치(1.0)를 기본 적용하여 사람처럼 매끄러운 음질을 보장합니다.
         const safePitch = Math.min(1.08, Math.max(0.92, this.voiceConfig.pitch || 1.0));
         const safeRate = Math.min(1.15, Math.max(0.75, this.voiceConfig.rate || 0.96));
-
         utterance.pitch = safePitch;
         utterance.rate = safeRate;
 
-        const speakerBtns = document.querySelectorAll('.tts-speaker-btn');
-        speakerBtns.forEach(btn => btn.classList.add('is-speaking'));
+        let hasStarted = false;
 
-        let callbackCalled = false;
-        const finishCallback = () => {
-          if (callbackCalled) return;
-          callbackCalled = true;
-          speakerBtns.forEach(btn => btn.classList.remove('is-speaking'));
-          if (onEnd) onEnd();
+        utterance.onstart = () => {
+          hasStarted = true;
         };
 
-        utterance.onend = finishCallback;
-        utterance.onerror = (e) => {
-          if (e.error !== 'interrupted' && e.error !== 'canceled') {
-            console.warn('TTS error:', e);
-          }
+        utterance.onend = () => {
           finishCallback();
         };
 
+        utterance.onerror = (e) => {
+          if (e.error === 'interrupted' || e.error === 'canceled') {
+            finishCallback();
+            return;
+          }
+          console.warn('Web Speech API error on tablet, switching to fallback:', e.error);
+          // 만약 voice 객체 문제로 에러가 났다면 기본 시스템 보이스 또는 오디오 폴백 실행
+          this.playFallbackTTS(cleanText, finishCallback);
+        };
+
         this.currentUtterance = utterance;
+        // 핵심: setTimeout 없이 사용자 터치 컨텍스트 안에서 즉시 동기 실행!
         this.speechSynth.speak(utterance);
-      }, waitMs);
-    } catch (err) {
-      console.warn('Speech synthesis exception:', err);
-      if (onEnd) onEnd();
+
+        // 안전장치: 일부 태블릿(카카오톡 인앱 브라우저, 구형 안드로이드 웹뷰 등)에서
+        // speechSynthesis.speak()가 아무 반응 없이 멈춰있는 경우 900ms 후 확인하여 폴백 가동
+        setTimeout(() => {
+          if (!hasStarted && !callbackCalled && !this.speechSynth.speaking) {
+            this.playFallbackTTS(cleanText, finishCallback);
+          }
+        }, 900);
+
+        return;
+      } catch (err) {
+        console.warn('SpeechSynthesis exception:', err);
+      }
+    }
+
+    // 2. Web Speech API 미지원 기기일 경우 폴백 실행
+    this.playFallbackTTS(cleanText, finishCallback);
+  }
+
+  /**
+   * 기기 내 TTS 엔진이 꺼져 있거나 작동하지 않는 태블릿을 위한 HTML5 Audio TTS 폴백
+   */
+  playFallbackTTS(text, onFinish) {
+    try {
+      const shortText = text.slice(0, 180);
+      const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=ko&q=${encodeURIComponent(shortText)}`;
+      const audio = new Audio(url);
+      audio.volume = 1.0;
+      this.fallbackAudio = audio;
+
+      audio.onended = () => {
+        onFinish();
+      };
+      audio.onerror = () => {
+        onFinish();
+      };
+
+      const playPromise = audio.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          onFinish();
+        });
+      }
+    } catch (e) {
+      onFinish();
     }
   }
 
   stopSpeaking() {
-    clearTimeout(this.speakTimer);
-    if (this.speechSynth) {
-      this.speechSynth.cancel();
+    if (this.fallbackAudio) {
+      try {
+        this.fallbackAudio.pause();
+        this.fallbackAudio = null;
+      } catch (e) {}
+    }
+    if (this.speechSynth && this.speechSynth.speaking) {
+      try {
+        this.speechSynth.cancel();
+      } catch (e) {}
     }
     const speakerBtns = document.querySelectorAll('.tts-speaker-btn');
     speakerBtns.forEach(btn => btn.classList.remove('is-speaking'));

@@ -1,11 +1,9 @@
 /**
  * ============================================================================
  * [App Engine] 학생용 5단계 학습 흐름 제어 & 양산희망학교 식단 자동 연동 엔진
- * - 1단계: 오늘 날짜 선택 (대형 달력 그리드, 월 이동 및 오늘 자동 하이라이트)
- * - 2단계: 오늘의 날씨 선택 (CSS/SVG 애니메이션 카드 4종)
- * - 3단계: 오늘의 기분 선택 (CSS/SVG 감정 캐릭터 카드 4종)
- * - 4단계: 양산희망학교 오늘의 급식 메뉴 자동 연동 & 긴 글자 자동 줄바꿈/배열
- * - 5단계: 오늘의 한 문장 따라 쓰기 (초·중·종성·겹받침·이중모음 자판 & 폭죽 보상)
+ * - 태블릿 PC 브라우저의 오디오 자동재생 제한(User Activation Policy) 완벽 대응:
+ *   모든 음성(TTS) 및 효과음(SFX)을 사용자 클릭(click) 이벤트와 동일한 동기 스택에서 즉시 호출
+ * - 양산희망학교 식단 백그라운드 선제 로드(Pre-fetch)로 4단계 진입 시 지연 없는 동기 발화 구현
  * ============================================================================
  */
 
@@ -57,9 +55,6 @@ class YangsanDietService {
     };
   }
 
-  /**
-   * 음식 이름에서 알레르기 번호 및 특수기호 제거
-   */
   static cleanDishName(rawText) {
     if (!rawText) return '';
     return rawText
@@ -71,19 +66,12 @@ class YangsanDietService {
       .trim();
   }
 
-  /**
-   * 긴 급식 메뉴 이름이 카드 칸을 절대 벗어나지 않도록 의미 단위로 자동 분할
-   * 예: "곤드레콩나물밥/매실간장양념장" -> ["곤드레콩나물밥", "매실간장양념장"]
-   * 예: "반달치즈떡갈비구운채소" -> ["반달치즈떡갈비", "구운채소"]
-   */
   static splitDishIntoBalancedLines(dishName) {
     if (!dishName) return [''];
 
-    // 1. 슬래시(/), 플러스(+), 쉼표 등으로 먼저 분리
     const rawParts = dishName.split(/[\/+&]+/).map(s => s.trim()).filter(Boolean);
     const finalLines = [];
 
-    // 복합 요리명 자연스러운 분할 키워드
     const splitKeywords = [
       '떡갈비', '메추리알', '콩나물밥', '돈가스', '돈까스', '불고기',
       '닭다리살', '고등어', '오징어', '옥수수', '브로콜리', '양배추', '감자채'
@@ -95,7 +83,6 @@ class YangsanDietService {
         return;
       }
 
-      // 키워드 기준 자연스러운 분리 시도
       let splitted = false;
       for (const kw of splitKeywords) {
         const idx = part.indexOf(kw);
@@ -110,7 +97,6 @@ class YangsanDietService {
         }
       }
 
-      // 키워드가 없는 긴 단어(8자 이상)는 균등한 길이로 2줄 자동 분할
       if (!splitted) {
         const mid = Math.ceil(part.length / 2);
         finalLines.push(part.slice(0, mid));
@@ -121,9 +107,6 @@ class YangsanDietService {
     return finalLines;
   }
 
-  /**
-   * 음식 이름에 어울리는 아이콘 자동 매칭
-   */
   static detectFoodIcon(dishName) {
     if (!dishName) return '🍱';
     if (/(카레|짜장|하이라이스|비빔밥|볶음밥|덮밥)/.test(dishName)) return '🍛';
@@ -159,6 +142,35 @@ class YangsanDietService {
     });
 
     return items;
+  }
+
+  static getFallbackDietSync(dateStr) {
+    try {
+      const savedMenu = JSON.parse(localStorage.getItem('daily_korean_lunch_menu'));
+      const savedSource = localStorage.getItem('daily_korean_lunch_source');
+      if (Array.isArray(savedMenu) && savedMenu.length > 0) {
+        return {
+          source: savedSource || '양산희망학교 식단 (자동 반영)',
+          items: savedMenu
+        };
+      }
+    } catch (e) {}
+
+    const dObj = new Date(dateStr);
+    let dayOfWeek = isNaN(dObj.getTime()) ? new Date().getDay() : dObj.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) dayOfWeek = 5;
+
+    const weeklyDB = this.getWeeklySchoolMenus();
+    const fallbackItems = (weeklyDB[dayOfWeek] || weeklyDB[1]).map((item, idx) => ({
+      id: Date.now() + idx,
+      name: item.name,
+      icon: item.icon
+    }));
+
+    return {
+      source: '양산희망학교 주간 표준 식단표 (자동 반영)',
+      items: fallbackItems
+    };
   }
 
   static async fetchFromNeisAPI(ymdStr) {
@@ -266,22 +278,7 @@ class YangsanDietService {
       return pageResult;
     } catch (e) {}
 
-    const dObj = new Date(dateStr);
-    let dayOfWeek = isNaN(dObj.getTime()) ? new Date().getDay() : dObj.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) dayOfWeek = 5;
-
-    const weeklyDB = this.getWeeklySchoolMenus();
-    const fallbackItems = (weeklyDB[dayOfWeek] || weeklyDB[1]).map((item, idx) => ({
-      id: Date.now() + idx,
-      name: item.name,
-      icon: item.icon
-    }));
-
-    const result = {
-      source: '양산희망학교 주간 표준 식단표 (자동 반영)',
-      items: fallbackItems
-    };
-
+    const result = this.getFallbackDietSync(dateStr);
     localStorage.setItem('daily_korean_lunch_menu', JSON.stringify(result.items));
     localStorage.setItem('daily_korean_lunch_source', result.source);
     return result;
@@ -311,8 +308,8 @@ class StudentApp {
     };
 
     this.keyboardInstance = null;
+    this.cachedDietData = null;
 
-    // 한 줄에 깔끔하게 들어가고 TTS가 자연스럽게 읽도록 다듬은 안내문
     this.stepGuides = {
       1: '달력에서 파란색 오늘 날짜를 찾아 눌러보세요.',
       2: '오늘 밖의 날씨는 어떤가요? 알맞은 날씨를 골라보세요.',
@@ -333,6 +330,8 @@ class StudentApp {
 
   init() {
     this.initStorageDefaults();
+    // 백그라운드에서 당일 양산희망학교 식단을 미리 받아두어 4단계 진입 시 지연 없이 즉시 동기 발화되도록 준비
+    this.prefetchTodayDiet();
     this.bindHeaderEvents();
     this.initVoiceSettingsModal();
     this.renderCalendar();
@@ -341,6 +340,34 @@ class StudentApp {
     this.bindDietBarEvents();
     this.initWritingStage();
     this.goToStep(1, true);
+    this.setupTabletFirstTouchVoice();
+  }
+
+  /**
+   * 태블릿 브라우저는 페이지 로드 직후(터치 전) 자동 음성 재생을 차단하므로,
+   * 사용자가 화면의 빈 곳이나 헤더를 처음 터치할 때 자동으로 1단계 안내 음성을 들려줍니다.
+   */
+  setupTabletFirstTouchVoice() {
+    const firstTouchHandler = (e) => {
+      window.removeEventListener('click', firstTouchHandler);
+      const interactiveTarget = e.target.closest('button, a, .weather-card, .emotion-card, .lunch-card, .step-node');
+      if (!interactiveTarget && this.currentStep === 1 && window.soundCtrl) {
+        window.soundCtrl.playClick();
+        this.speakCurrentInstruction();
+      }
+    };
+    window.addEventListener('click', firstTouchHandler, { once: true });
+  }
+
+  async prefetchTodayDiet() {
+    const todayStr = this.formatDate(this.today);
+    this.cachedDietData = YangsanDietService.getFallbackDietSync(todayStr);
+    try {
+      const liveDiet = await YangsanDietService.getDietForDate(todayStr, false);
+      if (liveDiet && liveDiet.items && liveDiet.items.length > 0) {
+        this.cachedDietData = liveDiet;
+      }
+    } catch (e) {}
   }
 
   initStorageDefaults() {
@@ -360,6 +387,7 @@ class StudentApp {
     const ttsBtn = document.getElementById('btnInstructionTTS');
     if (ttsBtn) {
       ttsBtn.addEventListener('click', () => {
+        if (window.soundCtrl) window.soundCtrl.playClick();
         this.speakCurrentInstruction();
       });
     }
@@ -450,7 +478,7 @@ class StudentApp {
       });
 
       if (voiceSelect && window.soundCtrl.availableKoreanVoices.length > 0) {
-        voiceSelect.innerHTML = `<option value="">자동 (자연스러운 청소년/기본 신경망 보이스)</option>` +
+        voiceSelect.innerHTML = `<option value="">자동 (기기 기본 한국어 음성)</option>` +
           window.soundCtrl.availableKoreanVoices.map(v => `
             <option value="${v.voiceURI}" ${cfg.preferredVoiceURI === v.voiceURI ? 'selected' : ''}>
               ${v.name} (${v.lang})
@@ -461,7 +489,10 @@ class StudentApp {
 
     if (openBtn) {
       openBtn.addEventListener('click', () => {
-        if (window.soundCtrl) window.soundCtrl.initVoices();
+        if (window.soundCtrl) {
+          window.soundCtrl.playClick();
+          window.soundCtrl.initVoices();
+        }
         syncModalUI();
         modal.classList.add('active');
       });
@@ -469,6 +500,7 @@ class StudentApp {
 
     if (closeBtn) {
       closeBtn.addEventListener('click', () => {
+        if (window.soundCtrl) window.soundCtrl.playClick();
         modal.classList.remove('active');
       });
     }
@@ -519,13 +551,16 @@ class StudentApp {
     if (testBtn) {
       testBtn.addEventListener('click', () => {
         if (window.soundCtrl) {
-          window.soundCtrl.speak('안녕, 이제 목소리가 갈라지지 않고 자연스럽고 또렷하게 잘 들리지? 함께 재미있게 공부해 보자.');
+          window.soundCtrl.speak('안녕, 태블릿에서도 목소리가 크고 자연스럽게 잘 들리지? 함께 재미있게 공부해 보자.');
         }
       });
     }
   }
 
-  goToStep(stepNumber, playSpeech = true) {
+  /**
+   * 단계 전환 처리 (태블릿 오디오 정책 준수를 위해 동기식으로 즉시 렌더링 및 발화)
+   */
+  goToStep(stepNumber, playSpeech = true, prefixPraise = '') {
     if (stepNumber < 1 || stepNumber > this.totalSteps) return;
 
     this.currentStep = stepNumber;
@@ -565,19 +600,33 @@ class StudentApp {
     }
 
     if (stepNumber === 4) {
-      this.loadAndRenderLunchMenu(false);
+      this.renderLunchMenuSync(playSpeech, prefixPraise);
       return;
     } else if (stepNumber === 5) {
-      this.setupSentenceWriting();
+      this.setupSentenceWriting(playSpeech, prefixPraise);
       return;
     }
 
     if (playSpeech && window.soundCtrl) {
-      this.speakCurrentInstruction();
+      const fullSpeech = prefixPraise ? `${prefixPraise} ${guideText}` : guideText;
+      window.soundCtrl.speak(fullSpeech);
     }
   }
 
   speakCurrentInstruction() {
+    if (this.currentStep === 4 && this.cachedDietData && this.cachedDietData.items) {
+      const menuNames = this.cachedDietData.items.map(i => i.name.replace(/\//g, ', ')).join(', ');
+      if (window.soundCtrl) {
+        window.soundCtrl.speak(`양산희망학교 오늘의 급식 메뉴는 ${menuNames} 이야. 가장 먹고 싶은 음식 카드를 눌러봐.`);
+      }
+      return;
+    }
+    if (this.currentStep === 5 && this.studentSession.sentence) {
+      if (window.soundCtrl) {
+        window.soundCtrl.speak(`오늘 따라 쓸 문장은, ${this.studentSession.sentence}, 이야. 초록색 테두리가 반짝이는 글자 버튼을 순서대로 눌러봐.`);
+      }
+      return;
+    }
     const text = this.stepGuides[this.currentStep];
     if (window.soundCtrl) {
       window.soundCtrl.speak(text);
@@ -648,12 +697,10 @@ class StudentApp {
 
       if (window.soundCtrl) {
         window.soundCtrl.playStepComplete();
-        window.soundCtrl.speak(`정답이야. 오늘은 ${this.viewMonth + 1}월 ${day}일이지. 이제 오늘 날씨를 골라보자.`, () => {
-          setTimeout(() => this.goToStep(2, false), 200);
-        });
-      } else {
-        this.goToStep(2, true);
       }
+      // 중요: 태블릿에서 음성이 끊기지 않도록 사용자 클릭 컨텍스트 안에서 즉시 다음 단계 전환 및 통합 음성 발화!
+      const praise = `정답이야. 오늘은 ${this.viewMonth + 1}월 ${day}일이지.`;
+      this.goToStep(2, true, praise);
     } else {
       if (window.soundCtrl) {
         window.soundCtrl.playRetry();
@@ -680,12 +727,9 @@ class StudentApp {
 
         if (window.soundCtrl) {
           window.soundCtrl.playStepComplete();
-          window.soundCtrl.speak(`오늘 날씨는 ${weatherLabel}이구나. 참 잘 골랐어. 이제 오늘 기분을 알려줘.`, () => {
-            setTimeout(() => this.goToStep(3, false), 200);
-          });
-        } else {
-          this.goToStep(3, true);
         }
+        const praise = `오늘 날씨는 ${weatherLabel}이구나. 참 잘 골랐어.`;
+        this.goToStep(3, true, praise);
       });
     });
   }
@@ -708,12 +752,9 @@ class StudentApp {
 
         if (window.soundCtrl) {
           window.soundCtrl.playStepComplete();
-          window.soundCtrl.speak(`오늘 기분이 ${emotionLabel}구나. 표현해줘서 고마워. 이제 양산희망학교 급식 메뉴를 보러 가자.`, () => {
-            setTimeout(() => this.goToStep(4, false), 200);
-          });
-        } else {
-          this.goToStep(4, true);
         }
+        const praise = `오늘 기분이 ${emotionLabel}구나. 표현해줘서 고마워.`;
+        this.goToStep(4, true, praise);
       });
     });
   }
@@ -724,15 +765,23 @@ class StudentApp {
   bindDietBarEvents() {
     const btnSyncDiet = document.getElementById('btnSyncYangsanDiet');
     if (btnSyncDiet) {
-      btnSyncDiet.addEventListener('click', () => {
-        if (window.soundCtrl) window.soundCtrl.playClick();
+      btnSyncDiet.addEventListener('click', async () => {
+        if (window.soundCtrl) {
+          window.soundCtrl.playClick();
+          window.soundCtrl.speak('양산희망학교 최신 식단을 다시 불러올게.');
+        }
         localStorage.removeItem('daily_korean_lunch_custom_override');
-        this.loadAndRenderLunchMenu(true);
+        const targetDate = this.studentSession.date || this.formatDate(this.today);
+        this.cachedDietData = await YangsanDietService.getDietForDate(targetDate, true);
+        this.renderLunchMenuSync(false);
       });
     }
   }
 
-  async loadAndRenderLunchMenu(forceRefresh = false) {
+  /**
+   * 동기식(Synchronous)으로 급식 카드를 즉시 렌더링하고 태블릿 음성을 바로 출력
+   */
+  renderLunchMenuSync(playSpeech = true, prefixPraise = '') {
     const container = document.getElementById('lunchMenuGrid');
     const dateLabelEl = document.getElementById('dietDateLabel');
     const statusBadgeEl = document.getElementById('dietSyncStatus');
@@ -742,18 +791,14 @@ class StudentApp {
     if (dateLabelEl) {
       dateLabelEl.textContent = `${targetDate} 중식 식단`;
     }
-    if (statusBadgeEl) {
-      statusBadgeEl.textContent = '🔄 양산희망학교 식단 불러오는 중...';
-    }
 
-    const dietData = await YangsanDietService.getDietForDate(targetDate, forceRefresh);
+    const dietData = this.cachedDietData || YangsanDietService.getFallbackDietSync(targetDate);
     const lunchItems = dietData.items || [];
 
     if (statusBadgeEl) {
       statusBadgeEl.textContent = `✅ ${dietData.source}`;
     }
 
-    // 카드 개수에 맞춰 대칭형 그리드 컬럼(예: 6개면 3x2, 5개면 5x1) 자동 지정
     container.setAttribute('data-count', String(lunchItems.length));
     container.innerHTML = '';
 
@@ -764,7 +809,6 @@ class StudentApp {
       card.setAttribute('tabindex', '0');
       card.setAttribute('aria-label', `급식 메뉴 ${item.name} 선택하기`);
 
-      // 긴 메뉴 이름을 의미 단위로 자동 줄바꿈 분할 및 글자 크기 자동 조절
       const lines = YangsanDietService.splitDishIntoBalancedLines(item.name);
       const maxLineLen = Math.max(...lines.map(l => l.length));
       const totalLen = item.name.length;
@@ -808,10 +852,21 @@ class StudentApp {
       container.appendChild(card);
     });
 
-    if (this.currentStep === 4 && lunchItems.length > 0 && window.soundCtrl) {
+    if (playSpeech && lunchItems.length > 0 && window.soundCtrl) {
       const menuNames = lunchItems.map(i => i.name.replace(/\//g, ', ')).join(', ');
-      window.soundCtrl.speak(`양산희망학교 오늘의 급식 메뉴는 ${menuNames} 이야. 가장 먹고 싶은 음식 카드를 눌러봐.`);
+      const msg = `${prefixPraise} 양산희망학교 오늘의 급식 메뉴는 ${menuNames} 이야. 가장 먹고 싶은 음식 카드를 눌러봐.`.trim();
+      window.soundCtrl.speak(msg);
     }
+
+    // 백그라운드에서 최신 식단 재확인
+    YangsanDietService.getDietForDate(targetDate, false).then(freshDiet => {
+      if (freshDiet && JSON.stringify(freshDiet.items) !== JSON.stringify(lunchItems)) {
+        this.cachedDietData = freshDiet;
+        if (this.currentStep === 4) {
+          this.renderLunchMenuSync(false);
+        }
+      }
+    }).catch(() => {});
   }
 
   handleLunchSelect(menuName, cardEl) {
@@ -822,13 +877,10 @@ class StudentApp {
 
     if (window.soundCtrl) {
       window.soundCtrl.playStepComplete();
-      const spokenMenu = menuName.replace(/\//g, ', ');
-      window.soundCtrl.speak(`${spokenMenu} 메뉴를 골랐구나. 정말 맛있겠다. 이제 마지막 다섯 번째 단계 문장 따라 쓰기를 해보자.`, () => {
-        setTimeout(() => this.goToStep(5, false), 200);
-      });
-    } else {
-      this.goToStep(5, true);
     }
+    const spokenMenu = menuName.replace(/\//g, ', ');
+    const praise = `${spokenMenu} 메뉴를 골랐구나. 정말 맛있겠다.`;
+    this.goToStep(5, true, praise);
   }
 
   // ==========================================================================
@@ -846,6 +898,7 @@ class StudentApp {
     if (btnSentenceTTS) {
       btnSentenceTTS.addEventListener('click', () => {
         if (this.studentSession.sentence && window.soundCtrl) {
+          window.soundCtrl.playClick();
           window.soundCtrl.speak(this.studentSession.sentence);
         }
       });
@@ -854,6 +907,7 @@ class StudentApp {
     const btnRestart = document.getElementById('btnRestartTask');
     if (btnRestart) {
       btnRestart.addEventListener('click', () => {
+        if (window.soundCtrl) window.soundCtrl.playClick();
         this.hideCelebration();
         this.studentSession = {
           date: this.formatDate(this.today),
@@ -870,7 +924,7 @@ class StudentApp {
     }
   }
 
-  setupSentenceWriting() {
+  setupSentenceWriting(playSpeech = true, prefixPraise = '') {
     let sentenceText = localStorage.getItem('daily_korean_selected_sentence');
     let category = '오늘의 문장';
 
@@ -905,8 +959,9 @@ class StudentApp {
       this.keyboardInstance.setTargetSentence(sentenceText);
     }
 
-    if (this.currentStep === 5 && window.soundCtrl) {
-      window.soundCtrl.speak(`오늘 따라 쓸 문장은, ${sentenceText}, 이야. 초록색 테두리가 반짝이는 글자 버튼을 순서대로 눌러봐.`);
+    if (playSpeech && window.soundCtrl) {
+      const msg = `${prefixPraise} 이제 마지막 5단계야. 오늘 따라 쓸 문장은, ${sentenceText}, 이야. 초록색 테두리가 반짝이는 글자 버튼을 순서대로 눌러봐.`.trim();
+      window.soundCtrl.speak(msg);
     }
   }
 
@@ -914,17 +969,13 @@ class StudentApp {
     this.studentSession.completedAt = new Date().toISOString();
     this.saveDailyRecord();
 
-    if (window.soundCtrl) {
-      window.soundCtrl.playFanfare();
-    }
-
     this.showCelebration();
 
-    setTimeout(() => {
-      if (window.soundCtrl) {
-        window.soundCtrl.speak('우와, 정말 대단해. 오늘의 매일 국어 다섯 단계 과제를 모두 멋지게 끝마쳤어. 오늘도 최고야.');
-      }
-    }, 650);
+    // 중요: 태블릿에서 축하 음성이 차단되지 않도록 setTimeout 없이 완료 클릭 즉시 발화!
+    if (window.soundCtrl) {
+      window.soundCtrl.playFanfare();
+      window.soundCtrl.speak('우와, 정말 대단해. 오늘의 매일 국어 다섯 단계 과제를 모두 멋지게 끝마쳤어. 오늘도 최고야.');
+    }
   }
 
   saveDailyRecord() {

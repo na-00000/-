@@ -432,10 +432,9 @@ class KoreanAccessibilityKeyboard {
     this.previewEl = document.getElementById('previewDisplay');
     this.guideEl = document.getElementById('keyboardGuideText');
 
-    // 자모 키 터치 바인딩
+    // 자모 키 터치 바인딩 (태블릿 브라우저 오디오/TTS 권한 승인을 위해 click 이벤트 사용)
     this.containerEl.querySelectorAll('.key-btn[data-key]').forEach(btn => {
-      btn.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
+      btn.addEventListener('click', () => {
         const key = btn.getAttribute('data-key');
         this.handleKeyPress(key, btn);
       });
@@ -444,8 +443,7 @@ class KoreanAccessibilityKeyboard {
     // 음성 힌트 버튼
     const btnHint = document.getElementById('btnKeyVoiceHint');
     if (btnHint) {
-      btnHint.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
+      btnHint.addEventListener('click', () => {
         this.speakNextKeyHint();
       });
     }
@@ -453,8 +451,7 @@ class KoreanAccessibilityKeyboard {
     // 지우기(백스페이스)
     const btnBackspace = document.getElementById('btnKeyBackspace');
     if (btnBackspace) {
-      btnBackspace.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
+      btnBackspace.addEventListener('click', () => {
         this.handleBackspace();
       });
     }
@@ -462,8 +459,7 @@ class KoreanAccessibilityKeyboard {
     // 띄어쓰기(스페이스)
     const btnSpace = document.getElementById('btnKeySpace');
     if (btnSpace) {
-      btnSpace.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
+      btnSpace.addEventListener('click', () => {
         this.handleSpace();
       });
     }
@@ -471,8 +467,7 @@ class KoreanAccessibilityKeyboard {
     // 다시 쓰기(현재 글자 초기화)
     const btnClear = document.getElementById('btnKeyClear');
     if (btnClear) {
-      btnClear.addEventListener('pointerdown', (e) => {
-        e.preventDefault();
+      btnClear.addEventListener('click', () => {
         this.resetBuffer();
         const currentBox = document.getElementById(`inputCharBox_${this.currentCharIndex}`);
         if (currentBox) currentBox.textContent = '';
