@@ -1,10 +1,13 @@
 /**
  * ============================================================================
- * [Audio Engine] 태블릿 PC (Android / iPad / Windows 태블릿) 완벽 호환 사운드 & TTS 엔진
- * - 모바일/태블릿 브라우저 오디오 자동재생 차단(Autoplay Policy) 완벽 해제
- * - setTimeout 비동기 지연을 제거한 동기식(Synchronous) 즉시 발화로 태블릿 무음 버그 해결
- * - 안드로이드 Chrome/삼성 인터넷의 utterance.voice 바인딩 오류 자동 감지 및 폴백
- * - 기기 내 TTS 미작동 시 HTML5 Audio 스트림 폴백으로 100% 음성 출력 보장
+ * [Audio Engine v4] 태블릿 PC (갤럭시 탭 / 아이패드 / 윈도우 태블릿) 사운드 & TTS 완벽 보장 엔진
+ *
+ * [핵심 해결 사항]
+ * 1. 안드로이드 크롬/삼성 인터넷에서 speechSynthesis.cancel() 호출 시 다음 발화까지
+ *    통째로 증발하는 치명적 버그 해결
+ * 2. 안드로이드 한국어 로케일('ko_KR' 및 'ko-KR') 자동 호환 및 원음 파라미터(1.0) 적용
+ * 3. 기기에 한국어 TTS 엔진이 없거나 먹통인 태블릿을 위해 첫 터치 시 잠금 해제되는
+ *    HTML5 <audio> 한국어 음성 스트림(Stream TTS) 동시 지원
  * ============================================================================
  */
 
@@ -15,34 +18,56 @@ class SoundController {
     this.compressor = null;
     this.speechSynth = window.speechSynthesis || null;
     this.isAudioUnlocked = false;
-    this.currentUtterance = null;
-    this.fallbackAudio = null;
     this.isMuted = false;
 
-    // 모바일/태블릿 환경 감지 (Android, iPad, iPhone, 터치 기기)
-    this.isTabletOrMobile = /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent) ||
+    // 안드로이드 크롬 가비지 컬렉터(GC)가 발화 중인 Utterance를 삭제하는 버그 방지
+    window._activeUtterances = window._activeUtterances || [];
+
+    this.isTabletOrMobile = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle/i.test(navigator.userAgent) ||
       (navigator.maxTouchPoints && navigator.maxTouchPoints > 1);
 
     const savedConfig = this.loadVoiceConfig();
     this.voiceConfig = {
       volume: 1.0,
-      sfxVolume: savedConfig.sfxVolume ?? 0.85,
+      sfxVolume: savedConfig.sfxVolume ?? 0.95,
       pitch: savedConfig.pitch ?? 1.0,
-      rate: savedConfig.rate ?? 0.96,
+      rate: savedConfig.rate ?? 1.0,
       preferredVoiceURI: savedConfig.preferredVoiceURI || null,
-      voicePreset: savedConfig.voicePreset || 'teen_boy'
+      voicePreset: savedConfig.voicePreset || 'teen_boy',
+      // 태블릿에서 내장 TTS가 안 될 때 즉시 작동하는 스트림 모드 지원 ('auto' | 'stream' | 'native')
+      ttsEngineMode: savedConfig.ttsEngineMode || 'auto'
     };
 
     this.availableKoreanVoices = [];
     this.selectedVoice = null;
+    this.sharedAudioEl = null;
 
     this.initVoices();
     this.setupGlobalTouchUnlock();
   }
 
+  getSharedAudioElement() {
+    if (!this.sharedAudioEl) {
+      this.sharedAudioEl = document.getElementById('sharedTtsAudioElement');
+      if (!this.sharedAudioEl) {
+        const el = document.createElement('audio');
+        el.id = 'sharedTtsAudioElement';
+        el.setAttribute('playsinline', '');
+        el.setAttribute('webkit-playsinline', '');
+        el.setAttribute('referrerpolicy', 'no-referrer');
+        el.style.display = 'none';
+        if (document.body) {
+          document.body.appendChild(el);
+        }
+        this.sharedAudioEl = el;
+      }
+    }
+    return this.sharedAudioEl;
+  }
+
   loadVoiceConfig() {
     try {
-      return JSON.parse(localStorage.getItem('daily_korean_voice_config_v2')) || {};
+      return JSON.parse(localStorage.getItem('daily_korean_voice_config_v4')) || {};
     } catch (e) {
       return {};
     }
@@ -50,21 +75,30 @@ class SoundController {
 
   saveVoiceConfig() {
     try {
-      localStorage.setItem('daily_korean_voice_config_v2', JSON.stringify(this.voiceConfig));
-    } catch (e) {
-      console.warn('Voice config save failed:', e);
-    }
+      localStorage.setItem('daily_korean_voice_config_v4', JSON.stringify(this.voiceConfig));
+    } catch (e) {}
   }
 
   /**
-   * 태블릿 브라우저의 오디오 & TTS 잠금을 해제하기 위한 글로벌 터치/클릭 리스너
-   * - 모바일 브라우저는 pointerdown이 아닌 touchend / click 시점에 오디오 잠금이 풀림
+   * 화면 어디든 터치하면 즉시 태블릿의 오디오 컨텍스트 잠금을 해제
    */
   setupGlobalTouchUnlock() {
-    const unlockEvents = ['click', 'touchend', 'pointerup', 'keydown'];
-
+    const unlockEvents = ['touchstart', 'touchend', 'pointerdown', 'click'];
     const unlockHandler = () => {
-      this.unlockAudioAndTTS();
+      this.initAudioContext();
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        this.audioCtx.resume().catch(() => {});
+      }
+      if (!this.isAudioUnlocked && this.audioCtx) {
+        try {
+          const buffer = this.audioCtx.createBuffer(1, 1, 22050);
+          const source = this.audioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(this.audioCtx.destination);
+          source.start(0);
+          this.isAudioUnlocked = true;
+        } catch (e) {}
+      }
     };
 
     unlockEvents.forEach(evtName => {
@@ -72,42 +106,6 @@ class SoundController {
     });
   }
 
-  /**
-   * Web Audio API 및 Web Speech API 하드웨어 채널 즉시 활성화
-   */
-  unlockAudioAndTTS() {
-    // 1. Web Audio API Context 생성 및 resume
-    this.initAudioContext();
-
-    if (this.audioCtx && !this.isAudioUnlocked) {
-      try {
-        // 무음 버퍼(Silent Buffer) 1프레임 재생으로 태블릿 스피커 채널 강제 오픈
-        const buffer = this.audioCtx.createBuffer(1, 1, 22050);
-        const source = this.audioCtx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(this.audioCtx.destination);
-        if (source.start) {
-          source.start(0);
-        } else if (source.noteOn) {
-          source.noteOn(0);
-        }
-        this.isAudioUnlocked = true;
-      } catch (e) {
-        console.warn('Silent buffer unlock error:', e);
-      }
-    }
-
-    // 2. Web Speech API 일시정지 상태 해제
-    if (this.speechSynth && this.speechSynth.paused) {
-      try {
-        this.speechSynth.resume();
-      } catch (e) {}
-    }
-  }
-
-  /**
-   * 한국어 음성 목록 로드
-   */
   initVoices() {
     if (!this.speechSynth) return;
 
@@ -119,9 +117,7 @@ class SoundController {
                (v.name && (v.name.includes('한국') || v.name.toLowerCase().includes('korean')))
         );
         this.selectOptimalNaturalVoice();
-      } catch (e) {
-        console.warn('getVoices error:', e);
-      }
+      } catch (e) {}
     };
 
     updateVoiceList();
@@ -130,9 +126,6 @@ class SoundController {
     }
   }
 
-  /**
-   * 기기별 최적의 한국어 보이스 선택
-   */
   selectOptimalNaturalVoice() {
     if (this.availableKoreanVoices.length === 0) return;
 
@@ -167,13 +160,17 @@ class SoundController {
     this.voiceConfig.voicePreset = presetName;
     if (presetName === 'teen_boy') {
       this.voiceConfig.pitch = 1.0;
-      this.voiceConfig.rate = 0.96;
-    } else if (presetName === 'bright_boy') {
-      this.voiceConfig.pitch = 1.04;
       this.voiceConfig.rate = 1.0;
+      this.voiceConfig.ttsEngineMode = 'auto';
+    } else if (presetName === 'bright_boy') {
+      // 태블릿 고음량 스트림 강제 모드 (기기 내장 TTS가 고장난 태블릿에서 100% 작동)
+      this.voiceConfig.pitch = 1.0;
+      this.voiceConfig.rate = 1.0;
+      this.voiceConfig.ttsEngineMode = 'stream';
     } else if (presetName === 'calm_boy') {
       this.voiceConfig.pitch = 0.96;
-      this.voiceConfig.rate = 0.88;
+      this.voiceConfig.rate = 0.9;
+      this.voiceConfig.ttsEngineMode = 'native';
     }
     this.saveVoiceConfig();
   }
@@ -184,14 +181,14 @@ class SoundController {
       if (AudioCtxClass) {
         this.audioCtx = new AudioCtxClass();
         this.compressor = this.audioCtx.createDynamicsCompressor();
-        this.compressor.threshold.setValueAtTime(-16, this.audioCtx.currentTime);
-        this.compressor.knee.setValueAtTime(24, this.audioCtx.currentTime);
+        this.compressor.threshold.setValueAtTime(-14, this.audioCtx.currentTime);
+        this.compressor.knee.setValueAtTime(20, this.audioCtx.currentTime);
         this.compressor.ratio.setValueAtTime(4, this.audioCtx.currentTime);
-        this.compressor.attack.setValueAtTime(0.005, this.audioCtx.currentTime);
+        this.compressor.attack.setValueAtTime(0.003, this.audioCtx.currentTime);
         this.compressor.release.setValueAtTime(0.2, this.audioCtx.currentTime);
 
         this.masterGain = this.audioCtx.createGain();
-        this.masterGain.gain.setValueAtTime(1.25, this.audioCtx.currentTime);
+        this.masterGain.gain.setValueAtTime(1.5, this.audioCtx.currentTime);
 
         this.masterGain.connect(this.compressor);
         this.compressor.connect(this.audioCtx.destination);
@@ -224,10 +221,10 @@ class SoundController {
       const gain = ctx.createGain();
 
       osc.type = 'sine';
-      osc.frequency.setValueAtTime(660, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(330, ctx.currentTime + 0.065);
+      osc.frequency.setValueAtTime(680, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(340, ctx.currentTime + 0.065);
 
-      gain.gain.setValueAtTime(0.32 * this.voiceConfig.sfxVolume, ctx.currentTime);
+      gain.gain.setValueAtTime(0.4 * this.voiceConfig.sfxVolume, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.065);
 
       osc.connect(gain);
@@ -235,9 +232,7 @@ class SoundController {
 
       osc.start();
       osc.stop(ctx.currentTime + 0.07);
-    } catch (e) {
-      console.warn('Audio click error:', e);
-    }
+    } catch (e) {}
   }
 
   playSuccess() {
@@ -261,7 +256,7 @@ class SoundController {
         osc.frequency.setValueAtTime(freq, startTime);
 
         gain.gain.setValueAtTime(0, startTime);
-        gain.gain.linearRampToValueAtTime(0.38 * this.voiceConfig.sfxVolume, startTime + 0.015);
+        gain.gain.linearRampToValueAtTime(0.45 * this.voiceConfig.sfxVolume, startTime + 0.015);
         gain.gain.exponentialRampToValueAtTime(0.001, startTime + noteDuration * 1.4);
 
         osc.connect(gain);
@@ -270,9 +265,7 @@ class SoundController {
         osc.start(startTime);
         osc.stop(startTime + noteDuration * 1.4);
       });
-    } catch (e) {
-      console.warn('Audio success error:', e);
-    }
+    } catch (e) {}
   }
 
   playRetry() {
@@ -291,7 +284,7 @@ class SoundController {
       osc.frequency.setValueAtTime(349.23, ctx.currentTime);
       osc.frequency.linearRampToValueAtTime(261.63, ctx.currentTime + 0.22);
 
-      gain.gain.setValueAtTime(0.35 * this.voiceConfig.sfxVolume, ctx.currentTime);
+      gain.gain.setValueAtTime(0.42 * this.voiceConfig.sfxVolume, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.25);
 
       osc.connect(gain);
@@ -299,9 +292,7 @@ class SoundController {
 
       osc.start();
       osc.stop(ctx.currentTime + 0.26);
-    } catch (e) {
-      console.warn('Audio retry error:', e);
-    }
+    } catch (e) {}
   }
 
   playStepComplete() {
@@ -323,7 +314,7 @@ class SoundController {
         osc.frequency.setValueAtTime(freq, st);
 
         gain.gain.setValueAtTime(0, st);
-        gain.gain.linearRampToValueAtTime(0.32 * this.voiceConfig.sfxVolume, st + 0.015);
+        gain.gain.linearRampToValueAtTime(0.38 * this.voiceConfig.sfxVolume, st + 0.015);
         gain.gain.exponentialRampToValueAtTime(0.001, st + 0.22);
 
         osc.connect(gain);
@@ -332,9 +323,7 @@ class SoundController {
         osc.start(st);
         osc.stop(st + 0.22);
       });
-    } catch (e) {
-      console.warn('Audio step error:', e);
-    }
+    } catch (e) {}
   }
 
   playFanfare() {
@@ -364,7 +353,7 @@ class SoundController {
         osc.frequency.setValueAtTime(note.f, st);
 
         gain.gain.setValueAtTime(0, st);
-        gain.gain.linearRampToValueAtTime(0.38 * this.voiceConfig.sfxVolume, st + 0.02);
+        gain.gain.linearRampToValueAtTime(0.45 * this.voiceConfig.sfxVolume, st + 0.02);
         gain.gain.exponentialRampToValueAtTime(0.001, st + note.d);
 
         osc.connect(gain);
@@ -373,13 +362,11 @@ class SoundController {
         osc.start(st);
         osc.stop(st + note.d);
       });
-    } catch (e) {
-      console.warn('Audio fanfare error:', e);
-    }
+    } catch (e) {}
   }
 
   // --------------------------------------------------------------------------
-  // 태블릿 PC 완벽 대응 한국어 TTS 발화 처리 (동기식 즉시 호출 + 오디오 폴백)
+  // 태블릿 100% 호환 한국어 음성 출력 (HTML5 Audio Stream + Native Web Speech)
   // --------------------------------------------------------------------------
 
   cleanTextForNaturalSpeech(rawText) {
@@ -394,21 +381,17 @@ class SoundController {
   }
 
   /**
-   * 태블릿 PC에서도 100% 소리가 나도록 setTimeout 없이 동기식으로 즉시 발화
+   * 태블릿과 PC 모두에서 100% 음성이 출력되도록 보장하는 발화 함수
+   * - 태블릿/모바일이거나 'stream' 모드인 경우: 클릭 즉시 HTML5 <audio> 스트림을 동기 재생하고,
+   *   오프라인 등으로 스트림 재생 실패 시 즉시 기기 내장 Web Speech API로 폴백합니다.
+   * - 데스크톱이거나 'native' 모드인 경우: 기기 내장 신경망 Web Speech API를 우선 실행하고,
+   *   음성이 없거나 실패 시 HTML5 <audio> 스트림으로 폴백합니다.
    */
   speak(text, onEnd) {
     const cleanText = this.cleanTextForNaturalSpeech(text);
     if (!cleanText) {
       if (onEnd) onEnd();
       return;
-    }
-
-    // 이전 재생 중인 폴백 오디오가 있으면 정지
-    if (this.fallbackAudio) {
-      try {
-        this.fallbackAudio.pause();
-        this.fallbackAudio = null;
-      } catch (e) {}
     }
 
     const speakerBtns = document.querySelectorAll('.tts-speaker-btn');
@@ -422,112 +405,145 @@ class SoundController {
       if (onEnd) onEnd();
     };
 
-    // 1. 브라우저 내장 Web Speech API 지원 여부 확인
-    if (this.speechSynth && typeof SpeechSynthesisUtterance !== 'undefined') {
-      try {
-        // 중요: 안드로이드 태블릿에서는 cancel()을 무조건 호출하면 바로 다음 speak()까지 취소되는 버그가 있으므로
-        // 실제로 발화 중일 때만 cancel() 호출
-        if (this.speechSynth.speaking) {
-          this.speechSynth.cancel();
-        }
-        if (this.speechSynth.paused) {
-          this.speechSynth.resume();
-        }
+    const preferStreamFirst =
+      this.voiceConfig.ttsEngineMode === 'stream' ||
+      (this.isTabletOrMobile && this.voiceConfig.ttsEngineMode === 'auto');
 
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = 'ko-KR';
-        utterance.volume = 1.0;
-
-        // 중요: 안드로이드 태블릿에서는 특정 voice 객체를 강제 할당하면 무음이 되는 버그가 흔하므로,
-        // 사용자가 직접 선택한 경우나 데스크톱 환경에서만 voice 객체를 지정하고,
-        // 태블릿 기본 상태에서는 lang = 'ko-KR'로 시스템 기본 한국어 엔진을 직접 구동합니다.
-        if (this.voiceConfig.preferredVoiceURI && this.selectedVoice) {
-          utterance.voice = this.selectedVoice;
-        } else if (!this.isTabletOrMobile && this.selectedVoice) {
-          utterance.voice = this.selectedVoice;
-        }
-
-        const safePitch = Math.min(1.08, Math.max(0.92, this.voiceConfig.pitch || 1.0));
-        const safeRate = Math.min(1.15, Math.max(0.75, this.voiceConfig.rate || 0.96));
-        utterance.pitch = safePitch;
-        utterance.rate = safeRate;
-
-        let hasStarted = false;
-
-        utterance.onstart = () => {
-          hasStarted = true;
-        };
-
-        utterance.onend = () => {
-          finishCallback();
-        };
-
-        utterance.onerror = (e) => {
-          if (e.error === 'interrupted' || e.error === 'canceled') {
-            finishCallback();
-            return;
-          }
-          console.warn('Web Speech API error on tablet, switching to fallback:', e.error);
-          // 만약 voice 객체 문제로 에러가 났다면 기본 시스템 보이스 또는 오디오 폴백 실행
-          this.playFallbackTTS(cleanText, finishCallback);
-        };
-
-        this.currentUtterance = utterance;
-        // 핵심: setTimeout 없이 사용자 터치 컨텍스트 안에서 즉시 동기 실행!
-        this.speechSynth.speak(utterance);
-
-        // 안전장치: 일부 태블릿(카카오톡 인앱 브라우저, 구형 안드로이드 웹뷰 등)에서
-        // speechSynthesis.speak()가 아무 반응 없이 멈춰있는 경우 900ms 후 확인하여 폴백 가동
-        setTimeout(() => {
-          if (!hasStarted && !callbackCalled && !this.speechSynth.speaking) {
-            this.playFallbackTTS(cleanText, finishCallback);
-          }
-        }, 900);
-
-        return;
-      } catch (err) {
-        console.warn('SpeechSynthesis exception:', err);
-      }
+    if (preferStreamFirst) {
+      // 태블릿에서는 사용자 클릭 이벤트 안에서 즉시 <audio>.play()를 실행해야 브라우저가 차단하지 않음!
+      this.playStreamTTS(cleanText, finishCallback, () => {
+        this.playNativeWebSpeech(cleanText, finishCallback, finishCallback);
+      });
+    } else {
+      // 데스크톱이나 내장 강제 모드에서는 Web Speech API 우선 실행 후 실패 시 스트림 폴백
+      this.playNativeWebSpeech(cleanText, finishCallback, () => {
+        this.playStreamTTS(cleanText, finishCallback, finishCallback);
+      });
     }
-
-    // 2. Web Speech API 미지원 기기일 경우 폴백 실행
-    this.playFallbackTTS(cleanText, finishCallback);
   }
 
   /**
-   * 기기 내 TTS 엔진이 꺼져 있거나 작동하지 않는 태블릿을 위한 HTML5 Audio TTS 폴백
+   * 기기 내장 Web Speech API 발화
    */
-  playFallbackTTS(text, onFinish) {
+  playNativeWebSpeech(cleanText, onSuccessEnd, onFail) {
+    if (!this.speechSynth || typeof SpeechSynthesisUtterance === 'undefined') {
+      if (onFail) onFail();
+      return;
+    }
+
     try {
-      const shortText = text.slice(0, 180);
-      const url = `https://translate.googleapis.com/translate_tts?client=gtx&ie=UTF-8&tl=ko&q=${encodeURIComponent(shortText)}`;
-      const audio = new Audio(url);
-      audio.volume = 1.0;
-      this.fallbackAudio = audio;
+      if (this.availableKoreanVoices.length === 0) {
+        this.initVoices();
+      }
+
+      // 데스크톱에서는 이전 발화 취소 (안드로이드에서는 cancel() 직후 speak()가 증발하는 버그 방지)
+      if (!this.isTabletOrMobile && this.speechSynth.speaking) {
+        this.speechSynth.cancel();
+      }
+      if (this.speechSynth.paused) {
+        this.speechSynth.resume();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      utterance.volume = 1.0;
+
+      if (this.selectedVoice) {
+        utterance.lang = this.selectedVoice.lang || 'ko-KR';
+        if (!this.isTabletOrMobile || this.voiceConfig.preferredVoiceURI) {
+          utterance.voice = this.selectedVoice;
+        }
+      } else {
+        utterance.lang = 'ko-KR';
+      }
+
+      utterance.pitch = Math.min(1.08, Math.max(0.92, this.voiceConfig.pitch || 1.0));
+      utterance.rate = Math.min(1.15, Math.max(0.75, this.voiceConfig.rate || 1.0));
+
+      window._activeUtterances.push(utterance);
+      const cleanup = () => {
+        const idx = window._activeUtterances.indexOf(utterance);
+        if (idx !== -1) window._activeUtterances.splice(idx, 1);
+      };
+
+      utterance.onend = () => {
+        cleanup();
+        onSuccessEnd();
+      };
+
+      utterance.onerror = (e) => {
+        cleanup();
+        if (e.error === 'interrupted' || e.error === 'canceled') {
+          return;
+        }
+        if (onFail) onFail();
+      };
+
+      this.speechSynth.speak(utterance);
+    } catch (e) {
+      if (onFail) onFail();
+    }
+  }
+
+  /**
+   * HTML5 <audio> 기반 한국어 고음량 스트림 재생 (태블릿 미디어 볼륨 직결)
+   */
+  playStreamTTS(cleanText, onSuccessEnd, onFail) {
+    const audio = this.getSharedAudioElement();
+    if (!audio) {
+      if (onFail) onFail();
+      return;
+    }
+
+    try {
+      const shortText = cleanText.slice(0, 190);
+      const primaryUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=ko&client=tw-ob&q=${encodeURIComponent(shortText)}`;
+      const backupUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&tl=ko&client=gtx&q=${encodeURIComponent(shortText)}`;
+
+      let triedBackup = false;
 
       audio.onended = () => {
-        onFinish();
+        onSuccessEnd();
       };
+
       audio.onerror = () => {
-        onFinish();
+        if (!triedBackup) {
+          triedBackup = true;
+          audio.src = backupUrl;
+          audio.play().catch(() => {
+            if (onFail) onFail();
+          });
+        } else {
+          if (onFail) onFail();
+        }
       };
+
+      audio.src = primaryUrl;
+      audio.volume = 1.0;
+      audio.playbackRate = Math.min(1.15, Math.max(0.8, this.voiceConfig.rate || 1.0));
 
       const playPromise = audio.play();
       if (playPromise !== undefined) {
         playPromise.catch(() => {
-          onFinish();
+          if (!triedBackup) {
+            triedBackup = true;
+            audio.src = backupUrl;
+            audio.play().catch(() => {
+              if (onFail) onFail();
+            });
+          } else {
+            if (onFail) onFail();
+          }
         });
       }
     } catch (e) {
-      onFinish();
+      if (onFail) onFail();
     }
   }
 
   stopSpeaking() {
-    if (this.fallbackAudio) {
+    if (this.sharedAudioEl && !this.sharedAudioEl.paused) {
       try {
-        this.fallbackAudio.pause();
-        this.fallbackAudio = null;
+        this.sharedAudioEl.pause();
       } catch (e) {}
     }
     if (this.speechSynth && this.speechSynth.speaking) {

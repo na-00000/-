@@ -339,24 +339,34 @@ class StudentApp {
     this.bindEmotionEvents();
     this.bindDietBarEvents();
     this.initWritingStage();
-    this.goToStep(1, true);
-    this.setupTabletFirstTouchVoice();
+    this.goToStep(1, false);
+    this.setupStartAudioOverlay();
   }
 
   /**
-   * 태블릿 브라우저는 페이지 로드 직후(터치 전) 자동 음성 재생을 차단하므로,
-   * 사용자가 화면의 빈 곳이나 헤더를 처음 터치할 때 자동으로 1단계 안내 음성을 들려줍니다.
+   * 태블릿 첫 진입 시 '터치하여 소리 켜고 시작하기' 버튼을 누르면
+   * 사용자 터치 컨텍스트 안에서 즉시 오디오 잠금을 풀고 1단계 음성을 출력합니다.
    */
-  setupTabletFirstTouchVoice() {
-    const firstTouchHandler = (e) => {
-      window.removeEventListener('click', firstTouchHandler);
-      const interactiveTarget = e.target.closest('button, a, .weather-card, .emotion-card, .lunch-card, .step-node');
-      if (!interactiveTarget && this.currentStep === 1 && window.soundCtrl) {
-        window.soundCtrl.playClick();
-        this.speakCurrentInstruction();
+  setupStartAudioOverlay() {
+    const overlay = document.getElementById('startAudioOverlay');
+    const startBtn = document.getElementById('btnStartWithSound');
+    if (!overlay) return;
+
+    const startHandler = () => {
+      overlay.classList.remove('active');
+      if (window.soundCtrl) {
+        window.soundCtrl.playStepComplete();
+        window.soundCtrl.speak('안녕, 매일 국어 배움터에 온 걸 환영해. 1단계, 달력에서 파란색 오늘 날짜를 찾아 눌러봐.');
       }
     };
-    window.addEventListener('click', firstTouchHandler, { once: true });
+
+    if (startBtn) {
+      startBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startHandler();
+      });
+    }
+    overlay.addEventListener('click', startHandler);
   }
 
   async prefetchTodayDiet() {

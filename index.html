@@ -3,16 +3,35 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="referrer" content="no-referrer">
   <title>매일 국어 배움터 - 양산희망학교 맞춤형 웹 접근성 학습</title>
 
-  <!-- 웹 접근성 및 고대비 3D 스타일시트 연동 -->
-  <link rel="stylesheet" href="css/style.css">
-  <link rel="stylesheet" href="css/keyboard.css">
-  <link rel="stylesheet" href="css/assets/weather.css">
-  <link rel="stylesheet" href="css/assets/emotion.css">
-  <link rel="stylesheet" href="css/assets/components.css">
+  <!-- 웹 접근성 및 고대비 3D 스타일시트 연동 (캐시 방지 버전 적용) -->
+  <link rel="stylesheet" href="css/style.css?v=20261118_3">
+  <link rel="stylesheet" href="css/keyboard.css?v=20261118_3">
+  <link rel="stylesheet" href="css/assets/weather.css?v=20261118_3">
+  <link rel="stylesheet" href="css/assets/emotion.css?v=20261118_3">
+  <link rel="stylesheet" href="css/assets/components.css?v=20261118_3">
 </head>
 <body>
+
+  <!-- 태블릿 오디오 잠금 해제용 공유 오디오 엘리먼트 -->
+  <audio id="sharedTtsAudioElement" playsinline webkit-playsinline preload="auto" referrerpolicy="no-referrer" style="display:none;"></audio>
+
+  <!-- 태블릿 첫 진입 시 오디오/음성 100% 활성화 시작 오버레이 -->
+  <div class="celebration-overlay active" id="startAudioOverlay" role="dialog" aria-modal="true" aria-labelledby="startOverlayTitle" style="z-index: 1200;">
+    <div class="celebration-card" style="max-width: 640px;">
+      <div style="font-size: 4.5rem; margin-bottom: 10px;">🔊</div>
+      <h2 class="celebration-title" id="startOverlayTitle">매일 국어 배움터</h2>
+      <p class="celebration-subtitle" style="margin-bottom: 24px;">
+        태블릿 소리와 음성 안내를 켜기 위해<br>
+        아래 시작 버튼을 한 번 터치해 주세요!
+      </p>
+      <button type="button" class="btn-3d btn-primary" id="btnStartWithSound" style="width: 100%; min-height: 92px; font-size: 1.85rem;">
+        🔊 터치하여 소리 켜고 시작하기
+      </button>
+    </div>
+  </div>
 
   <!-- 태블릿 PC 가로 화면(16:10 / 16:9) 최적화 컨테이너 -->
   <div class="app-container" role="main">
@@ -49,10 +68,10 @@
         </div>
       </nav>
 
-      <!-- 우측 유틸리티 도구 (청소년 목소리 설정 & 교사 관리자 이동) -->
+      <!-- 우측 유틸리티 도구 (목소리 설정 & 교사 관리자 이동) -->
       <div class="header-tools">
-        <button type="button" class="btn-3d voice-setting-btn" id="btnOpenVoiceModal" aria-label="청소년 목소리 및 소리 크기 설정">
-          👦 목소리 설정
+        <button type="button" class="btn-3d voice-setting-btn" id="btnOpenVoiceModal" aria-label="청소년 목소리 및 태블릿 소리 설정">
+          🔊 소리/목소리 설정
         </button>
         <a href="admin.html" class="btn-3d admin-link-btn" title="교사용 관리자 페이지로 이동" aria-label="교사 관리자 모드 이동">
           ⚙️ 교사 관리
@@ -64,7 +83,7 @@
     <section class="instruction-banner" aria-live="polite">
       <div class="instruction-text-group">
         <span class="instruction-badge" id="stepBadge">1단계</span>
-        <span class="instruction-text" id="instructionText">달력에서 파란색 오늘 날짜를 찾아 눌러보세요!</span>
+        <span class="instruction-text" id="instructionText">달력에서 파란색 오늘 날짜를 찾아 눌러보세요.</span>
       </div>
 
       <div class="banner-actions">
@@ -94,7 +113,7 @@
           <div class="calendar-header">
             <div class="calendar-title-group">
               <h2 class="calendar-month-title" id="calendarMonthTitle">2026년 11월</h2>
-              <span class="today-hint-pill" id="todayHintText">💡 오늘은 11월 5일이에요!</span>
+              <span class="today-hint-pill" id="todayHintText">💡 오늘은 11월 18일이에요</span>
             </div>
 
             <div style="display: flex; gap: 16px;">
@@ -132,7 +151,7 @@
       <section class="step-section" id="stepSection_2" aria-label="2단계: 오늘의 날씨 선택">
         <div class="choice-grid-4" role="group" aria-label="오늘의 날씨 목록">
 
-          <!-- 1. 맑음 (해 자전 & 맥박 애니메이션) -->
+          <!-- 1. 맑음 -->
           <button type="button" class="weather-card" data-weather="sunny" aria-label="날씨: 맑음">
             <div class="weather-graphic" aria-hidden="true">
               <div class="sun-container">
@@ -146,7 +165,7 @@
             <span class="weather-label">맑음</span>
           </button>
 
-          <!-- 2. 흐림 (구름 부유 애니메이션) -->
+          <!-- 2. 흐림 -->
           <button type="button" class="weather-card" data-weather="cloudy" aria-label="날씨: 흐림">
             <div class="weather-graphic" aria-hidden="true">
               <div class="cloud-container">
@@ -159,7 +178,7 @@
             <span class="weather-label">흐림</span>
           </button>
 
-          <!-- 3. 비 (비구름 & 빗방울 낙하 애니메이션) -->
+          <!-- 3. 비 -->
           <button type="button" class="weather-card" data-weather="rainy" aria-label="날씨: 비">
             <div class="weather-graphic" aria-hidden="true">
               <div class="rain-container">
@@ -174,7 +193,7 @@
             <span class="weather-label">비</span>
           </button>
 
-          <!-- 4. 눈 (눈구름 & 눈송이 살랑살랑 흔들림 애니메이션) -->
+          <!-- 4. 눈 -->
           <button type="button" class="weather-card" data-weather="snowy" aria-label="날씨: 눈">
             <div class="weather-graphic" aria-hidden="true">
               <div class="snow-container">
@@ -309,34 +328,34 @@
   </div>
 
   <!-- ========================================================================
-       청소년 남자아이 목소리 & 음량 설정 모달
+       청소년 목소리 & 태블릿 소리 설정 모달
        ======================================================================== -->
   <div class="voice-modal-overlay" id="voiceSettingsModal" role="dialog" aria-modal="true" aria-labelledby="voiceModalTitle">
     <div class="voice-modal-card">
       <div style="display: flex; align-items: center; justify-content: space-between;">
-        <h2 id="voiceModalTitle" style="font-size: 1.85rem; font-weight: 900; color: #1e3a8a;">
-          👦 청소년 남자아이 음성 & 소리 설정
+        <h2 id="voiceModalTitle" style="font-size: 1.8rem; font-weight: 900; color: #1e3a8a;">
+          🔊 태블릿 소리 & 목소리 설정
         </h2>
         <button type="button" class="btn-3d btn-secondary" id="btnCloseVoiceModal" style="min-height: 56px; min-width: 76px; padding: 6px 18px; font-size: 1.2rem;">
           닫기 ✕
         </button>
       </div>
 
-      <p style="font-size: 1.15rem; font-weight: 700; color: #334155;">
-        한국어에 최적화된 청소년 남자아이 목소리 톤과 빠르기를 선택하고 소리를 들어보세요. (음량 100% 최대 부스트 적용됨)
+      <p style="font-size: 1.12rem; font-weight: 700; color: #334155;">
+        태블릿에서 소리가 작거나 안 나올 때는 <strong>[📱 태블릿 고음량 모드]</strong>를 선택하고 아래 테스트 버튼을 눌러보세요!
       </p>
 
       <div>
-        <div style="font-size: 1.2rem; font-weight: 900; margin-bottom: 10px;">1. 청소년 목소리 스타일 프리셋</div>
+        <div style="font-size: 1.2rem; font-weight: 900; margin-bottom: 10px;">1. 음성 출력 방식 선택</div>
         <div class="voice-preset-grid">
           <button type="button" class="voice-preset-btn active" data-preset="teen_boy">
-            👦 활기찬 청소년<br><small>(기본 추천)</small>
+            👦 자동 하이브리드<br><small>(청소년/기본 음성)</small>
           </button>
           <button type="button" class="voice-preset-btn" data-preset="bright_boy">
-            🧒 명랑한 소년<br><small>(맑고 높은 톤)</small>
+            📱 태블릿 고음량 모드<br><small>(태블릿 소리 100% 보장)</small>
           </button>
           <button type="button" class="voice-preset-btn" data-preset="calm_boy">
-            🧑 차분한 청소년<br><small>(또박또박 톤)</small>
+            🧑 차분한 낭독<br><small>(천천히 또박또박)</small>
           </button>
         </div>
       </div>
@@ -346,7 +365,7 @@
           2. 기기에 설치된 한국어 음성 엔진 선택
         </label>
         <select id="koreanVoiceSelect" style="width: 100%; height: 56px; border: 3px solid #0f172a; border-radius: 14px; padding: 0 14px; font-size: 1.15rem; font-weight: 700;">
-          <option value="">자동 (청소년 남자아이 최적 보이스)</option>
+          <option value="">자동 (기기 최적 한국어 음성)</option>
         </select>
       </div>
 
@@ -359,15 +378,15 @@
         </div>
         <div>
           <label for="voiceRateRange" style="display: block; font-size: 1.15rem; font-weight: 900; margin-bottom: 6px;">
-            말하기 속도(Rate): <span id="rateValueLabel" style="color: #2563eb;">0.96</span>
+            말하기 속도(Rate): <span id="rateValueLabel" style="color: #2563eb;">0.98</span>
           </label>
-          <input type="range" id="voiceRateRange" min="0.75" max="1.15" step="0.02" value="0.96" style="width: 100%; height: 32px;">
+          <input type="range" id="voiceRateRange" min="0.75" max="1.15" step="0.02" value="0.98" style="width: 100%; height: 32px;">
         </div>
       </div>
 
       <div style="display: flex; justify-content: flex-end; gap: 16px; margin-top: 6px;">
         <button type="button" class="btn-3d btn-primary" id="btnTestVoice" style="width: 100%; min-height: 68px; font-size: 1.4rem;">
-          🔊 청소년 남자아이 목소리 테스트 듣기
+          🔊 소리 & 목소리 테스트 듣기
         </button>
       </div>
     </div>
@@ -399,9 +418,37 @@
   <!-- 폭죽 캔버스 레이어 -->
   <canvas id="confettiCanvas"></canvas>
 
-  <!-- 자바스크립트 엔진 파일 로드 -->
-  <script src="js/audio.js"></script>
-  <script src="js/keyboard.js"></script>
-  <script src="js/app.js"></script>
+  <!-- 자바스크립트 엔진 파일 로드 (태블릿 브라우저 캐시 무효화 버전 파라미터 포함) -->
+  <script src="js/audio.js?v=20261118_4"></script>
+  <script src="js/keyboard.js?v=20261118_4"></script>
+  <script src="js/app.js?v=20261118_4"></script>
+
+  <!-- 태블릿 캐시/하위폴더 미업로드 대비 인라인 안전 보장 스크립트 -->
+  <script>
+    (function() {
+      const overlay = document.getElementById('startAudioOverlay');
+      const startBtn = document.getElementById('btnStartWithSound');
+      if (!overlay) return;
+
+      let started = false;
+      const onStartTap = function(e) {
+        if (started) return;
+        started = true;
+        overlay.classList.remove('active');
+        if (window.soundCtrl) {
+          if (typeof window.soundCtrl.initAudioContext === 'function') {
+            window.soundCtrl.initAudioContext();
+          }
+          if (typeof window.soundCtrl.playStepComplete === 'function') {
+            window.soundCtrl.playStepComplete();
+          }
+          window.soundCtrl.speak('안녕, 매일 국어 배움터에 온 걸 환영해. 1단계, 달력에서 파란색 오늘 날짜를 찾아 눌러봐.');
+        }
+      };
+
+      if (startBtn) startBtn.addEventListener('click', onStartTap);
+      overlay.addEventListener('click', onStartTap);
+    })();
+  </script>
 </body>
 </html>
